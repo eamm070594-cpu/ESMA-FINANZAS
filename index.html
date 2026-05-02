@@ -309,6 +309,51 @@ tbody tr:last-child td{border-bottom:none;}
         <div style="margin-top:16px;"><div class="sh" style="margin-bottom:10px;"><div><h2 style="font-size:17px;">Créditos bancarios</h2></div><button class="btn primary small" id="btnAddCredito">＋ Crédito</button></div><div id="creditosList"></div></div>
       </div>
     </div>
+
+    <!-- COMPRAS RÁPIDAS -->
+    <div class="page" id="page-compras">
+      <div style="padding:16px 0 4px;">
+        <div class="sh"><div><h2>Compra rápida</h2><div class="sub">Registra al instante</div></div></div>
+        <div class="card" style="margin-bottom:12px;">
+          <div class="flabel" style="margin-top:0;">Tarjeta</div>
+          <div class="field"><select id="cq_tarjeta" style="font-size:14px;font-weight:700;"></select></div>
+          <div class="flabel">Monto</div>
+          <div class="field" style="background:#eff6ff;border-color:#bfdbfe;">
+            <span class="ico" style="font-size:20px;font-weight:900;color:#2563eb;">$</span>
+            <input type="number" id="cq_monto" placeholder="0.00" step="0.01" style="font-size:24px;font-weight:900;color:#0f172a;" inputmode="decimal">
+          </div>
+          <div class="flabel">Concepto</div>
+          <div class="field"><input id="cq_concepto" placeholder="¿Qué compraste?"></div>
+          <div class="frow">
+            <div>
+              <div class="flabel">Categoría</div>
+              <div class="field"><select id="cq_cat"><option>Comida</option><option>Gasolina</option><option>Ropa</option><option>Servicios</option><option>Entretenimiento</option><option>Salud</option><option>Viajes</option><option>Negocio</option><option>Otro</option></select></div>
+            </div>
+            <div>
+              <div class="flabel">Fecha</div>
+              <div class="field"><input type="date" id="cq_fecha"></div>
+            </div>
+          </div>
+          <button onclick="registrarCompraRapida()" style="width:100%;margin-top:16px;padding:16px;background:#2563eb;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:900;font-family:var(--font);cursor:pointer;">🛍️ Registrar compra</button>
+          <div id="cq_confirm" style="display:none;margin-top:12px;padding:12px;background:#f0fdf4;border:1px solid rgba(22,163,74,.2);border-radius:10px;text-align:center;font-size:13px;font-weight:700;color:#16a34a;"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">🕐 Compras recientes</div>
+          <div id="cq_historial"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTORIAL -->
+    <div class="page" id="page-historial">
+      <div style="padding:16px 0 4px;">
+        <div class="sh"><div><h2>Historial</h2><div class="sub">Comportamiento de tus finanzas</div></div></div>
+        <div class="card" style="margin-bottom:10px;"><div class="card-title">⚙️ Tarjetas incluidas en las gráficas</div><div id="historialFiltroTarjetas" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;"></div><div style="font-size:11px;color:var(--muted);margin-top:8px;">Desactiva las tarjetas departamentales o que no quieras incluir.</div></div>
+        <div class="card" style="margin-bottom:10px;"><div class="card-title">💰 Ingresos vs Gastos por mes</div><canvas id="chartIngVsGas" style="max-height:220px;"></canvas></div>
+        <div class="card" style="margin-bottom:10px;"><div class="card-title">💳 Deuda de tarjetas seleccionadas</div><canvas id="chartDeuda" style="max-height:200px;"></canvas></div>
+        <div class="card" style="margin-bottom:10px;"><div class="card-title">🗂 Gastos por categoría (mes actual)</div><canvas id="chartCategorias" style="max-height:220px;"></canvas><div id="chartCategoriasLegend" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"></div></div>
+      </div>
+    </div>
   </div>
 
   <nav class="bottomnav">
@@ -320,50 +365,6 @@ tbody tr:last-child td{border-bottom:none;}
     <button class="ni" id="nav-historial" onclick="goPage('historial')"><div class="ni-wrap"><span class="nico">📈</span></div><span class="nlbl">Historial</span></button>
     <button class="ni" id="nav-compras" onclick="goPage('compras')"><div class="ni-wrap"><span class="nico">🛍️</span></div><span class="nlbl">Compras</span></button>
   </nav>
-
-  <!-- COMPRAS RÁPIDAS -->
-  <div class="page" id="page-compras">
-    <div style="padding:16px 0 4px;">
-      <div class="sh"><div><h2>Compra rápida</h2><div class="sub">Registra al instante</div></div></div>
-      <div class="card" style="margin-bottom:12px;">
-        <div class="flabel" style="margin-top:0;">Tarjeta</div>
-        <div class="field"><select id="cq_tarjeta" style="font-size:14px;font-weight:700;"></select></div>
-        <div class="flabel">Monto</div>
-        <div class="field" style="background:#eff6ff;border-color:#bfdbfe;">
-          <span class="ico" style="font-size:20px;font-weight:900;color:#2563eb;">$</span>
-          <input type="number" id="cq_monto" placeholder="0.00" step="0.01" style="font-size:24px;font-weight:900;color:#0f172a;" inputmode="decimal">
-        </div>
-        <div class="flabel">Concepto</div>
-        <div class="field"><input id="cq_concepto" placeholder="¿Qué compraste?"></div>
-        <div class="frow">
-          <div>
-            <div class="flabel">Categoría</div>
-            <div class="field"><select id="cq_cat"><option>Comida</option><option>Gasolina</option><option>Ropa</option><option>Servicios</option><option>Entretenimiento</option><option>Salud</option><option>Viajes</option><option>Negocio</option><option>Otro</option></select></div>
-          </div>
-          <div>
-            <div class="flabel">Fecha</div>
-            <div class="field"><input type="date" id="cq_fecha"></div>
-          </div>
-        </div>
-        <button onclick="registrarCompraRapida()" style="width:100%;margin-top:16px;padding:16px;background:#2563eb;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:900;font-family:var(--font);cursor:pointer;">🛍️ Registrar compra</button>
-        <div id="cq_confirm" style="display:none;margin-top:12px;padding:12px;background:#f0fdf4;border:1px solid rgba(22,163,74,.2);border-radius:10px;text-align:center;font-size:13px;font-weight:700;color:#16a34a;"></div>
-      </div>
-      <div class="card">
-        <div class="card-title">🕐 Compras recientes</div>
-        <div id="cq_historial"></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="page" id="page-historial">
-    <div style="padding:16px 0 4px;">
-      <div class="sh"><div><h2>Historial</h2><div class="sub">Comportamiento de tus finanzas</div></div></div>
-      <div class="card" style="margin-bottom:10px;"><div class="card-title">⚙️ Tarjetas incluidas en las gráficas</div><div id="historialFiltroTarjetas" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;"></div><div style="font-size:11px;color:var(--muted);margin-top:8px;">Desactiva las tarjetas departamentales o que no quieras incluir.</div></div>
-      <div class="card" style="margin-bottom:10px;"><div class="card-title">💰 Ingresos vs Gastos por mes</div><canvas id="chartIngVsGas" style="max-height:220px;"></canvas></div>
-      <div class="card" style="margin-bottom:10px;"><div class="card-title">💳 Deuda de tarjetas seleccionadas</div><canvas id="chartDeuda" style="max-height:200px;"></canvas></div>
-      <div class="card" style="margin-bottom:10px;"><div class="card-title">🗂 Gastos por categoría (mes actual)</div><canvas id="chartCategorias" style="max-height:220px;"></canvas><div id="chartCategoriasLegend" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"></div></div>
-    </div>
-  </div>
 </div>
 
 <div class="overlay" id="sheetOverlay">
@@ -474,6 +475,16 @@ function delCredito(i){ if(!confirm('¿Eliminar este crédito?')) return; db.cre
 function sheetEditCredito(i){ const c=db.creditos[i]; openSheet('Editar crédito',`<div class="flabel">Nombre</div><div class="field"><input id="ecc_nombre" value="${esc(c.nombre||'')}"></div><div class="frow"><div><div class="flabel">Monto original</div><div class="field"><span class="ico">$</span><input type="number" id="ecc_original" value="${c.original||0}" step="0.01"></div></div><div><div class="flabel">Saldo pendiente</div><div class="field"><span class="ico">$</span><input type="number" id="ecc_pendiente" value="${c.pendiente||0}" step="0.01"></div></div></div><div class="frow"><div><div class="flabel">Cuota mensual</div><div class="field"><span class="ico">$</span><input type="number" id="ecc_cuota" value="${c.cuota||0}" step="0.01"></div></div><div><div class="flabel">Fecha de pago</div><div class="field"><input type="date" id="ecc_fecha" value="${c.fechaPago||''}"></div></div></div>`,[{label:'Cancelar',cls:'',action:closeSheet},{label:'💾 Guardar',cls:'primary',action:()=>{ c.nombre=document.getElementById('ecc_nombre').value.trim()||c.nombre; c.original=parseFloat(document.getElementById('ecc_original').value)||0; c.pendiente=parseFloat(document.getElementById('ecc_pendiente').value)||0; c.cuota=parseFloat(document.getElementById('ecc_cuota').value)||0; c.fechaPago=document.getElementById('ecc_fecha').value; save();closeSheet();renderPagos(); }}]); }
 document.getElementById('btnAddPago').addEventListener('click',()=>{ openSheet('Agregar pago manual',`<div class="flabel">Nombre del pago</div><div class="field"><input id="ap_nombre" placeholder="Ej. Renta, Luz, Internet..."></div><div class="frow"><div><div class="flabel">Fecha límite</div><div class="field"><input type="date" id="ap_fecha" value="${today()}"></div></div><div><div class="flabel">Monto</div><div class="field"><span class="ico">$</span><input type="number" id="ap_monto" placeholder="0.00" step="0.01"></div></div></div>`,[{label:'Cancelar',cls:'',action:closeSheet},{label:'＋ Guardar',cls:'primary',action:()=>{ const nombre=document.getElementById('ap_nombre').value.trim(); const monto=parseFloat(document.getElementById('ap_monto').value); if(!nombre||!monto||isNaN(monto)){alert('Completa todos los campos');return;} db.pagos.push({id:uid(),nombre,fecha:document.getElementById('ap_fecha').value,monto,tipo:'manual'}); save();closeSheet();renderPagos(); }}]); });
 document.getElementById('btnAddCredito').addEventListener('click',()=>{ openSheet('Nuevo crédito bancario',`<div class="flabel">Nombre del crédito</div><div class="field"><input id="acr_nombre" placeholder="Ej. Crédito BBVA, Préstamo personal..."></div><div class="frow"><div><div class="flabel">Monto original</div><div class="field"><span class="ico">$</span><input type="number" id="acr_original" placeholder="0.00" step="0.01"></div></div><div><div class="flabel">Saldo pendiente</div><div class="field"><span class="ico">$</span><input type="number" id="acr_pendiente" placeholder="0.00" step="0.01"></div></div></div><div class="frow"><div><div class="flabel">Cuota mensual</div><div class="field"><span class="ico">$</span><input type="number" id="acr_cuota" placeholder="0.00" step="0.01"></div></div><div><div class="flabel">Fecha de pago mensual</div><div class="field"><input type="date" id="acr_fecha" value="${today()}"></div></div></div>`,[{label:'Cancelar',cls:'',action:closeSheet},{label:'＋ Guardar',cls:'primary',action:()=>{ const nombre=document.getElementById('acr_nombre').value.trim(); if(!nombre){alert('Ingresa el nombre');return;} db.creditos.push({id:uid(),nombre,original:parseFloat(document.getElementById('acr_original').value)||0,pendiente:parseFloat(document.getElementById('acr_pendiente').value)||0,cuota:parseFloat(document.getElementById('acr_cuota').value)||0,fechaPago:document.getElementById('acr_fecha').value}); save();closeSheet();renderPagos(); }}]); });
+
+// ── MIGRACIÓN DE DATOS ──────────────────────────────────────
+(function(){
+  try{
+    if(!localStorage.getItem('esma_fin_v3')){
+      const datos = '{"tarjetas":[{"id":"a6835582077bf819da1fa7059","nombre":"Banorte 1020","limite":8000,"disponible":5169.29,"fechaCorte":"2026-04-10","fechaPago":"2026-05-29"},{"id":"385389ebfedfa19da1fb0d97","nombre":"Banorte 0024","limite":3000,"disponible":2856.18,"fechaCorte":"2026-04-10","fechaPago":"2026-05-29"},{"id":"45717bb37165619da1fe0a97","nombre":"Santander like u","limite":7900,"disponible":1384.0099999999998,"fechaCorte":"","fechaPago":"2026-05-22"},{"id":"3763740a9521b819da1fe98ea","nombre":"Santander oro","limite":0,"disponible":0,"fechaCorte":"","fechaPago":"2026-04-24"},{"id":"c7f393340227f819da1ff90ed","nombre":"Hey Banco","limite":8800,"disponible":8649,"fechaCorte":"2026-03-25","fechaPago":"2026-05-14"},{"id":"ac68c7a8301e819da200e250","nombre":"Plata","limite":5500,"disponible":4615.8,"fechaCorte":"2026-03-23","fechaPago":"2026-05-22"},{"id":"3a50b39f7e61b819da21d424e","nombre":"suburbia","limite":13000,"disponible":11488.97,"fechaCorte":"","fechaPago":"2026-05-09"},{"id":"2befa09936dff19da22af4fe","nombre":"Deportenis","limite":3445,"disponible":875,"fechaCorte":"","fechaPago":"2026-04-30"}],"cuentas":[{"id":"0b9c1d2cb84bb19da1fb9556","nombre":"Banorte","saldo":941.76,"movimientos":[{"id":"f706c87c1416219da2124c81","tipo":"retiro","concepto":"Pago Tarjeta de credito","fecha":"2026-04-18","monto":1475},{"id":"4c6a83484ecfc19da214413f","tipo":"deposito","concepto":"Deposito","fecha":"2026-04-18","monto":1475},{"id":"dc8ac880cc8c619dc52f4ff7","tipo":"deposito","concepto":"Sueldo","fecha":"2026-04-25","monto":938.76,"origenIngreso":true}]},{"id":"0ac4dd9138f8119da1fc54b5","nombre":"Santander","saldo":10020.44,"movimientos":[{"id":"a88accc3dbece819da212cb9d","tipo":"retiro","concepto":"Pago Tarjeta de credito","fecha":"2026-04-18","monto":3770},{"id":"b50d501c524b9819da214924a","tipo":"deposito","concepto":"deposito","fecha":"2026-04-18","monto":3770},{"id":"31793565acbee819dae05a44d","tipo":"retiro","concepto":"pago tarjeta PLATA","fecha":"2026-04-21","monto":1000},{"id":"d0d5b1362da1b19dae10e73a","tipo":"deposito","concepto":"Sueldo","fecha":"2026-04-21","monto":2671,"origenIngreso":true},{"id":"7cf050d91337719dae115651","tipo":"deposito","concepto":"Sueldo","fecha":"2026-04-21","monto":9000,"origenIngreso":true},{"id":"578875f12d66219dc5316933","tipo":"deposito","concepto":"Sueldo","fecha":"2026-04-25","monto":3624.46,"origenIngreso":true},{"id":"d8667b8fcdfda19dc53213f0","tipo":"retiro","concepto":"Comida","fecha":"2026-04-25","monto":500},{"id":"bcaba080aef1419dc53b1935","tipo":"deposito","concepto":"Ajuste","fecha":"2026-04-25","monto":494.54},{"id":"2024801b89bc7819dcac50e71","tipo":"retiro","concepto":"Pago Felipe y retiro de efectivo","fecha":"2026-04-26","monto":1043.56}]},{"id":"feefef2d0d0ae19da2015eee","nombre":"Vales de despensa","saldo":0,"movimientos":[{"id":"cfb380d5bf3ba19dc5531930","tipo":"retiro","concepto":"retiro","fecha":"2026-04-25","monto":1767}]},{"id":"b943e2658220119da21a4533","nombre":"Hey banco","saldo":0,"movimientos":[]},{"id":"fa5dd544fc413819dc5529521","nombre":"Mercado Libre","saldo":1701,"movimientos":[]}],"ingresos":[{"id":"606fc8a218c4b819dae10e73a","tipo":"emprendimiento","fecha":"2026-04-21","monto":2671,"destino":"cuenta:0ac4dd9138f8119da1fc54b5","concepto":"Miriam Lozano ","tipoPago":"Anticipo"},{"id":"e230931b9284e19dae115651","tipo":"emprendimiento","fecha":"2026-04-21","monto":9000,"destino":"cuenta:0ac4dd9138f8119da1fc54b5","concepto":"Anticipo Chava","tipoPago":"Anticipo"},{"id":"c976e576c296219dc52f4ff7","tipo":"sueldo","fecha":"2026-04-25","monto":938.76,"destino":"cuenta:0b9c1d2cb84bb19da1fb9556"},{"id":"674af16b31581819dc5316933","tipo":"sueldo","fecha":"2026-04-25","monto":3624.46,"destino":"cuenta:0ac4dd9138f8119da1fc54b5"}],"pagos":[{"id":"b5aa739a110e319da21572dd","nombre":"Pago Banorte 1020","destino":"Banorte 1020","fecha":"2026-04-18","monto":3770,"tipo":"tarjeta","tarjetaId":"a6835582077bf819da1fa7059"},{"id":"f0747ee1f13d819da216438d","nombre":"Pago Banorte 1020","destino":"Banorte 1020","fecha":"2026-04-18","monto":1175,"tipo":"tarjeta","tarjetaId":"a6835582077bf819da1fa7059"},{"id":"75e5848636c82819da216d400","nombre":"Pago Banorte 0024","destino":"Banorte 0024","fecha":"2026-04-18","monto":297,"tipo":"tarjeta","tarjetaId":"385389ebfedfa19da1fb0d97"},{"id":"338bebf82895a19dae06382e","nombre":"Pago Plata","destino":"Plata","fecha":"2026-04-20","monto":1000,"tipo":"tarjeta","tarjetaId":"ac68c7a8301e819da200e250"},{"id":"c0478d846563419dae06e4fe","nombre":"Pago Plata","destino":"Plata","fecha":"2026-04-20","monto":1000,"tipo":"tarjeta","tarjetaId":"ac68c7a8301e819da200e250"},{"id":"ffd2b501a91e5819dc533aa73","nombre":"Pago Plata","destino":"Plata","fecha":"2026-04-25","monto":4942,"tipo":"tarjeta","tarjetaId":"ac68c7a8301e819da200e250"},{"id":"a4a3bc0718f00819dc544644e","nombre":"Pago Deportenis","destino":"Deportenis","fecha":"2026-03-20","monto":445,"tipo":"tarjeta","tarjetaId":"2befa09936dff19da22af4fe"},{"id":"07acc833d6cac19dc5450126","nombre":"Pago Deportenis","destino":"Deportenis","fecha":"2026-04-25","monto":445,"tipo":"tarjeta","tarjetaId":"2befa09936dff19da22af4fe"},{"id":"b98a54b108f1b819dc546d712","nombre":"Pago Deportenis","destino":"Deportenis","fecha":"2026-04-25","monto":445,"tipo":"tarjeta","tarjetaId":"2befa09936dff19da22af4fe"}],"creditos":[{"id":"ec8df74f5a81719da20415a5","nombre":"Credito de Nomina","original":97000,"pendiente":90485,"cuota":4680,"fechaPago":"2026-04-30"}],"gastos":[{"id":"dc317d5f0b4d5819dae07a907","tarjetaId":"ac68c7a8301e819da200e250","concepto":"ERROR DE CAPTURA","fecha":"2026-04-20","monto":1000,"categoria":"Otro"},{"id":"97dd1a0a4a3aa19dae157e81","tarjetaId":"45717bb37165619da1fe0a97","concepto":"Fin de semana","fecha":"2026-04-19","monto":959,"categoria":"Otro"},{"id":"0839cfe5cc2e319dc52fdb52","tarjetaId":"a6835582077bf819da1fa7059","concepto":"Netflix","fecha":"2026-04-25","monto":139,"categoria":"Entretenimiento"},{"id":"f418b2696926c819dc534358a","tarjetaId":"ac68c7a8301e819da200e250","concepto":"Gasto Luis","fecha":"2026-04-25","monto":70,"categoria":"Otro"},{"id":"eb1675f360f70819dc534f35e","tarjetaId":"ac68c7a8301e819da200e250","concepto":"Hoja de aluminio","fecha":"2026-04-25","monto":418.2,"categoria":"Negocio"},{"id":"e76999e287d1419dc535540e","tarjetaId":"ac68c7a8301e819da200e250","concepto":"Taxi / Comida Luis","fecha":"2026-04-25","monto":36,"categoria":"Comida"},{"id":"76d341852dbc9819dc53d702b","tarjetaId":"45717bb37165619da1fe0a97","concepto":"Feria, comida, cerveza, gasolina","fecha":"2026-04-25","monto":1861.5,"categoria":"Entretenimiento"},{"id":"cc91b0d133eda19dcac3c308","tarjetaId":"45717bb37165619da1fe0a97","concepto":"Gasolina, salidas, comida","fecha":"2026-04-26","monto":1517.69,"categoria":"Otro"},{"id":"abb320d041b16819dcac7e54d","tarjetaId":"ac68c7a8301e819da200e250","concepto":"Luis","fecha":"2026-04-26","monto":360,"categoria":"Negocio"}],"snapshots":{"2026-04":14606.750000000002},"historialFiltro":{"a6835582077bf819da1fa7059":true,"385389ebfedfa19da1fb0d97":true,"45717bb37165619da1fe0a97":true,"3763740a9521b819da1fe98ea":true,"c7f393340227f819da1ff90ed":true,"ac68c7a8301e819da200e250":true,"3a50b39f7e61b819da21d424e":true,"2befa09936dff19da22af4fe":true}}';
+      localStorage.setItem('esma_fin_v3', datos);
+    }
+  }catch(e){}
+})();
 
 load(); updateTopbar(); document.getElementById('ingMes').value=currentMonth(); renderDashboard();
 document.addEventListener('touchstart',function(){},{passive:true});
