@@ -371,8 +371,16 @@ tbody tr:last-child td{border-bottom:none;}
       <div style="padding:16px 0 4px;">
         <div class="sh"><div><h2>Compra rapida</h2><div class="sub">Registra al instante</div></div></div>
         <div class="card" style="margin-bottom:12px;">
-          <div class="flabel" style="margin-top:0;">Tarjeta</div>
-          <div class="field"><select id="cq_tarjeta" style="font-size:14px;font-weight:700;"></select></div>
+          <div class="flabel" style="margin-top:0;">Forma de pago</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:4px;">
+            <button onclick="setCqTipo('credito')" id="cqbtn_credito" style="padding:10px 4px;border-radius:10px;border:2px solid var(--accent);background:var(--accent-light);color:var(--accent);font-size:12px;font-weight:800;font-family:var(--font);cursor:pointer;">Credito</button>
+            <button onclick="setCqTipo('debito')"  id="cqbtn_debito"  style="padding:10px 4px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);font-size:12px;font-weight:800;font-family:var(--font);cursor:pointer;">Debito</button>
+            <button onclick="setCqTipo('efectivo')" id="cqbtn_efectivo" style="padding:10px 4px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);font-size:12px;font-weight:800;font-family:var(--font);cursor:pointer;">Efectivo</button>
+          </div>
+          <div id="cq_selector_wrap">
+            <div class="flabel" id="cq_selector_label">Tarjeta de credito</div>
+            <div class="field"><select id="cq_fuente" style="font-size:14px;font-weight:700;"></select></div>
+          </div>
           <div class="flabel">Monto</div>
           <div class="field" style="background:#eff6ff;border-color:#bfdbfe;">
             <span class="ico" style="font-size:20px;font-weight:900;color:#2563eb;">$</span>
@@ -464,38 +472,122 @@ tbody tr:last-child td{border-bottom:none;}
 })();
 
 // ── COMPRAS RAPIDAS ─────────────────────────────────────────
+var _cqTipo = 'credito';
+
+function setCqTipo(tipo){
+  _cqTipo = tipo;
+  var btns = ['credito','debito','efectivo'];
+  btns.forEach(function(b){
+    var el = document.getElementById('cqbtn_'+b);
+    if(!el) return;
+    if(b===tipo){
+      el.style.border='2px solid var(--accent)';
+      el.style.background='var(--accent-light)';
+      el.style.color='var(--accent)';
+    } else {
+      el.style.border='1px solid var(--border)';
+      el.style.background='var(--bg3)';
+      el.style.color='var(--muted)';
+    }
+  });
+  var lbl = document.getElementById('cq_selector_label');
+  var sel = document.getElementById('cq_fuente');
+  if(tipo==='credito'){
+    if(lbl) lbl.textContent='Tarjeta de credito';
+    var wrap = document.getElementById('cq_selector_wrap');
+    if(wrap) wrap.style.display='';
+    if(sel) sel.innerHTML = db.tarjetas.length ? db.tarjetas.map(function(t){ return '<option value="tc:'+t.id+'">'+t.nombre+' — Disp: $'+money(t.disponible||0)+'</option>'; }).join('') : '<option value="">Sin tarjetas</option>';
+  } else if(tipo==='debito'){
+    if(lbl) lbl.textContent='Cuenta / Tarjeta debito';
+    var wrap = document.getElementById('cq_selector_wrap');
+    if(wrap) wrap.style.display='';
+    if(sel) sel.innerHTML = db.cuentas.length ? db.cuentas.map(function(c){ return '<option value="cu:'+c.id+'">'+c.nombre+' — $'+money(c.saldo||0)+'</option>'; }).join('') : '<option value="">Sin cuentas</option>';
+  } else {
+    // efectivo
+    var wrap = document.getElementById('cq_selector_wrap');
+    // Check if Efectivo account exists
+    var ef = db.cuentas.find(function(c){ return c.nombre.toLowerCase().indexOf('efectivo')!==-1; });
+    if(ef){
+      if(lbl) lbl.textContent='Cuenta efectivo';
+      if(wrap) wrap.style.display='';
+      if(sel) sel.innerHTML = '<option value="cu:'+ef.id+'">'+ef.nombre+' — $'+money(ef.saldo||0)+'</option>';
+    } else {
+      if(wrap) wrap.style.display='none';
+    }
+  }
+}
+
 function renderCompras(){
-  const sel=document.getElementById('cq_tarjeta');
-  if(!sel) return;
-  sel.innerHTML=db.tarjetas.length?db.tarjetas.map(t=>'<option value="'+t.id+'">'+t.nombre+' — Disp: $'+money(t.disponible||0)+'</option>').join(''):'<option value="">Sin tarjetas registradas</option>';
+  if(!document.getElementById('cq_fuente')) return;
+  setCqTipo(_cqTipo);
   document.getElementById('cq_fecha').value=today();
   renderCqHistorial();
 }
+
 function renderCqHistorial(){
-  const el=document.getElementById('cq_historial'); if(!el) return;
-  const items=[...db.gastos].sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||'')).slice(0,10);
-  el.innerHTML=items.length?items.map(g=>{ const t=db.tarjetas.find(x=>x.id===g.tarjetaId); return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);"><div style="width:36px;height:36px;border-radius:9px;background:var(--red-light);display:grid;place-items:center;font-size:16px;flex-shrink:0;">&#128722;</div><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(g.concepto||'Compra')+'</div><div style="font-size:11px;color:var(--muted);">'+(t?esc(t.nombre):'—')+' · '+esc(g.categoria||'General')+' · '+formatDate(g.fecha)+'</div></div><div style="font-size:13px;font-weight:800;color:var(--red);">-$'+money(g.monto)+'</div></div>'; }).join(''):'<div class="empty" style="padding:20px 0;"><div class="eico">&#128722;</div><p>Sin compras registradas</p></div>';
+  var el=document.getElementById('cq_historial'); if(!el) return;
+  // Show gastos + pagos manuales together sorted by date
+  var gastos = db.gastos.map(function(g){
+    var t=db.tarjetas.find(function(x){return x.id===g.tarjetaId;});
+    var c=db.cuentas.find(function(x){return x.id===g.cuentaId;});
+    return {fecha:g.fecha,concepto:g.concepto||'Compra',origen:t?t.nombre:c?c.nombre:'Efectivo',cat:g.categoria||'General',monto:g.monto,tipo:g.tipoPago||'credito'};
+  });
+  var items = gastos.sort(function(a,b){ return (b.fecha||'').localeCompare(a.fecha||''); }).slice(0,10);
+  el.innerHTML=items.length?items.map(function(g){
+    var ico = g.tipo==='efectivo'?'&#128181;':g.tipo==='debito'?'&#127968;':'&#128722;';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);"><div style="width:36px;height:36px;border-radius:9px;background:var(--red-light);display:grid;place-items:center;font-size:16px;flex-shrink:0;">'+ico+'</div><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(g.concepto)+'</div><div style="font-size:11px;color:var(--muted);">'+esc(g.origen)+' · '+esc(g.cat)+' · '+formatDate(g.fecha)+'</div></div><div style="font-size:13px;font-weight:800;color:var(--red);">-$'+money(g.monto)+'</div></div>';
+  }).join(''):'<div class="empty" style="padding:20px 0;"><div class="eico">&#128722;</div><p>Sin compras registradas</p></div>';
 }
+
 function registrarCompraRapida(){
-  const tarjetaId=document.getElementById('cq_tarjeta').value;
-  const monto=parseFloat(document.getElementById('cq_monto').value);
-  const concepto=document.getElementById('cq_concepto').value.trim();
-  const cat=document.getElementById('cq_cat').value;
-  const fecha=document.getElementById('cq_fecha').value;
-  if(!tarjetaId){alert('Selecciona una tarjeta');return;}
+  var fuenteVal = document.getElementById('cq_fuente') ? document.getElementById('cq_fuente').value : '';
+  var monto=parseFloat(document.getElementById('cq_monto').value);
+  var concepto=document.getElementById('cq_concepto').value.trim();
+  var cat=document.getElementById('cq_cat').value;
+  var fecha=document.getElementById('cq_fecha').value;
   if(!monto||isNaN(monto)||monto<=0){alert('Ingresa un monto valido');return;}
   if(!concepto){alert('Ingresa el concepto');return;}
-  const t=db.tarjetas.find(x=>x.id===tarjetaId); if(!t) return;
-  t.disponible=Math.max(0,Number(t.disponible||0)-monto);
-  db.gastos.push({id:uid(),tarjetaId,concepto,fecha,monto,categoria:cat});
+  var nombreOrigen = '';
+  if(_cqTipo==='credito'){
+    if(!fuenteVal){alert('Selecciona una tarjeta');return;}
+    var tarjetaId = fuenteVal.replace('tc:','');
+    var t=db.tarjetas.find(function(x){return x.id===tarjetaId;});
+    if(!t){alert('Tarjeta no encontrada');return;}
+    t.disponible=Math.max(0,Number(t.disponible||0)-monto);
+    db.gastos.push({id:uid(),tarjetaId:tarjetaId,concepto:concepto,fecha:fecha,monto:monto,categoria:cat,tipoPago:'credito'});
+    nombreOrigen = t.nombre;
+  } else if(_cqTipo==='debito'){
+    if(!fuenteVal){alert('Selecciona una cuenta');return;}
+    var cuentaId = fuenteVal.replace('cu:','');
+    var c=db.cuentas.find(function(x){return x.id===cuentaId;});
+    if(!c){alert('Cuenta no encontrada');return;}
+    c.saldo=Math.max(0,Number(c.saldo||0)-monto);
+    c.movimientos=c.movimientos||[];
+    c.movimientos.push({id:uid(),tipo:'retiro',concepto:concepto,fecha:fecha,monto:monto});
+    db.gastos.push({id:uid(),cuentaId:cuentaId,concepto:concepto,fecha:fecha,monto:monto,categoria:cat,tipoPago:'debito'});
+    nombreOrigen = c.nombre;
+  } else {
+    // efectivo
+    var ef = db.cuentas.find(function(c){ return c.nombre.toLowerCase().indexOf('efectivo')!==-1; });
+    if(!ef){
+      // Crear cuenta efectivo automaticamente
+      ef = {id:uid(),nombre:'Efectivo',saldo:0,movimientos:[]};
+      db.cuentas.push(ef);
+    }
+    ef.saldo=Math.max(0,Number(ef.saldo||0)-monto);
+    ef.movimientos=ef.movimientos||[];
+    ef.movimientos.push({id:uid(),tipo:'retiro',concepto:concepto,fecha:fecha,monto:monto});
+    db.gastos.push({id:uid(),cuentaId:ef.id,concepto:concepto,fecha:fecha,monto:monto,categoria:cat,tipoPago:'efectivo'});
+    nombreOrigen = 'Efectivo';
+  }
   save();
   document.getElementById('cq_monto').value='';
   document.getElementById('cq_concepto').value='';
   document.getElementById('cq_fecha').value=today();
-  const conf=document.getElementById('cq_confirm');
+  var conf=document.getElementById('cq_confirm');
   conf.style.display='block';
-  conf.textContent='Registrado: $'+money(monto)+' en '+t.nombre+' — Disponible: $'+money(t.disponible);
-  setTimeout(()=>{ conf.style.display='none'; },3000);
+  conf.textContent='Registrado: $'+money(monto)+' ('+nombreOrigen+')';
+  setTimeout(function(){ conf.style.display='none'; },3000);
   renderCompras();
 }
 
