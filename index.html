@@ -709,14 +709,28 @@ function renderDashboard(){
   // Gastos de tarjetas/débito/efectivo del mes
   const gastosMes = db.gastos.filter(x=>(x.fecha||'').startsWith(mes));
   const totalGastos = gastosMes.reduce((s,x)=>s+Number(x.monto||0),0);
+  // Transferencias y retiros efectivo de cuentas del mes (aparecen en salidas)
+  const movSalidas = db.cuentas.flatMap(c=>(c.movimientos||[]).filter(m=>
+    m.tipo==='retiro' &&
+    (m.subTipo==='transferencia'||m.subTipo==='efectivo') &&
+    (m.fecha||'').startsWith(mes)
+  ));
+  const totalMovSalidas = movSalidas.reduce((s,m)=>s+Number(m.monto||0),0);
   // Pagos manuales del mes (renta, luz, etc.) — NO pagos a tarjeta
   const pagosManuales = db.pagos.filter(x=>(x.fecha||'').startsWith(mes)&&x.tipo!=='tarjeta');
   const totalPagosManuales = pagosManuales.reduce((s,x)=>s+Number(x.monto||0),0);
-  // Cuotas créditos bancarios
+  // Cuotas créditos bancarios (compromisos fijos — se muestran SEPARADOS)
   const totalCuotas = db.creditos.reduce((s,c)=>s+Number(c.cuota||0),0);
-  // Total salidas real (sin duplicar pagos a tarjeta)
-  const totalSalidas = totalGastos + totalPagosManuales + totalCuotas;
-  const flujoNeto = totalIng - totalSalidas;
+  // Pagos manuales fijos (renta, luz, etc.)
+  const totalPagosFijos = totalPagosManuales;
+  // Total compromisos fijos
+  const totalFijos = totalCuotas + totalPagosFijos;
+  // Salidas variables (gastos + transferencias + retiros efectivo)
+  const totalSalidas = totalGastos + totalMovSalidas;
+  // Disponible real = ingresos - fijos
+  const disponibleReal = totalIng - totalFijos;
+  // Flujo libre = disponible real - gastos variables
+  const flujoNeto = disponibleReal - totalSalidas;
 
   // Desglose personal vs negocio
   const gastosPersonal = gastosMes.filter(x=>!esGastoNegocio(x)).reduce((s,x)=>s+Number(x.monto||0),0);
@@ -737,7 +751,7 @@ function renderDashboard(){
       <div class="ksub">${ingMes.length} registro${ingMes.length!==1?'s':''} · Ver →</div>
     </div>
     <div class="kpi" onclick="showDetalle('salidas')" style="cursor:pointer;">
-      <div class="kico">📉</div><div class="klbl">Salidas mes</div>
+      <div class="kico">📉</div><div class="klbl">Gastos del mes</div>
       <div class="kval" style="color:var(--red);">$${money(totalSalidas)}</div>
       <div class="ksub">Personal $${money(gastosPersonal)} · Neg $${money(gastosNegocio)} · Ver →</div>
     </div>
@@ -757,26 +771,56 @@ function renderDashboard(){
   const netColor = flujoNeto>=0?'var(--green-light)':'var(--red-light)';
   const netTextColor = flujoNeto>=0?'var(--green)':'var(--red)';
   const netIco = flujoNeto>=0?'📈':'📉';
-  const maxBar = Math.max(totalIng,totalSalidas,1);
+  const dispColor = disponibleReal>=0?'var(--green)':'var(--red)';
+  const maxBar = Math.max(totalIng, totalSalidas+totalFijos, 1);
 
   document.getElementById('flujoCard').innerHTML=`
     <div class="flujo-title">📊 Flujo del mes</div>
-    <div class="flujo-row"><div class="flujo-lbl"><span style="color:var(--green);">▲</span> Entradas</div><div class="flujo-val" style="color:var(--green);">+$${money(totalIng)}</div></div>
-    <div class="flujo-row"><div class="flujo-lbl"><span style="color:var(--muted);">  ↳</span> Gastos personales</div><div style="font-size:12px;color:var(--muted);">$${money(gastosPersonal)}</div></div>
-    <div class="flujo-row"><div class="flujo-lbl"><span style="color:var(--muted);">  ↳</span> Gastos negocio</div><div style="font-size:12px;color:var(--muted);">$${money(gastosNegocio)}</div></div>
-    <div class="flujo-row"><div class="flujo-lbl"><span style="color:var(--muted);">  ↳</span> Pagos fijos + créditos</div><div style="font-size:12px;color:var(--muted);">$${money(totalPagosManuales+totalCuotas)}</div></div>
-    <div class="flujo-row"><div class="flujo-lbl"><span style="color:var(--red);">▼</span> Salidas totales</div><div class="flujo-val" style="color:var(--red);">-$${money(totalSalidas)}</div></div>
-    <div class="flujo-bar-wrap">
-      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:4px;"><span>Entradas</span><span>Salidas</span></div>
-      <div class="flujo-bar-track">
-        <div class="flujo-bar-in" style="width:${Math.round(totalIng/maxBar*100)}%;"></div>
-        <div style="flex:1;"></div>
-        <div class="flujo-bar-out" style="width:${Math.round(totalSalidas/maxBar*100)}%;"></div>
-      </div>
+
+    <div class="flujo-row">
+      <div class="flujo-lbl"><span style="color:var(--green);">▲</span> Ingresos</div>
+      <div class="flujo-val" style="color:var(--green);">+$${money(totalIng)}</div>
     </div>
-    <div style="background:${netColor};margin-top:12px;border-radius:10px;padding:12px;display:flex;justify-content:space-between;align-items:center;">
-      <div style="font-size:13px;font-weight:700;color:${netTextColor};">${netIco} Flujo neto</div>
-      <div style="font-size:18px;font-weight:900;color:${netTextColor};">${flujoNeto>=0?'+':''}$${money(flujoNeto)}</div>
+
+    <div style="background:var(--red-light);border:1px solid rgba(220,38,38,.15);border-radius:10px;padding:10px 12px;margin:8px 0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-size:12px;font-weight:800;color:var(--red);">🔒 Compromisos fijos</span>
+        <span style="font-size:13px;font-weight:900;color:var(--red);">-$${money(totalFijos)}</span>
+      </div>
+      ${db.creditos.map(c=>`
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);padding:2px 0;">
+          <span>🏛️ ${esc(c.nombre)}</span><span>-$${money(c.cuota)}</span>
+        </div>`).join('')}
+      ${totalPagosFijos>0?`<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);padding:2px 0;"><span>📋 Pagos fijos</span><span>-$${money(totalPagosFijos)}</span></div>`:''}
+    </div>
+
+    <div style="background:${disponibleReal>=0?'var(--accent-light)':'var(--red-light)'};border:1px solid ${disponibleReal>=0?'rgba(37,99,235,.2)':'rgba(220,38,38,.2)'};border-radius:10px;padding:10px 12px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:12px;font-weight:800;color:${dispColor};">💰 Disponible real</span>
+        <span style="font-size:16px;font-weight:900;color:${dispColor};">${disponibleReal>=0?'+':''}$${money(disponibleReal)}</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:3px;">Lo que realmente puedes gastar este mes</div>
+    </div>
+
+    <div class="flujo-row">
+      <div class="flujo-lbl"><span style="color:var(--muted);">  ↳</span> 👤 Gastos personales</div>
+      <div style="font-size:12px;color:var(--muted);">-$${money(gastosPersonal)}</div>
+    </div>
+    <div class="flujo-row">
+      <div class="flujo-lbl"><span style="color:var(--muted);">  ↳</span> 🏢 Gastos negocio</div>
+      <div style="font-size:12px;color:var(--muted);">-$${money(gastosNegocio)}</div>
+    </div>
+    ${totalMovSalidas>0?`
+    <div class="flujo-row">
+      <div class="flujo-lbl"><span style="color:var(--muted);">  ↳</span> 💸 Transferencias / Efectivo</div>
+      <div style="font-size:12px;color:var(--muted);">-$${money(totalMovSalidas)}</div>
+    </div>`:''}
+    <div style="background:${netColor};margin-top:8px;border-radius:10px;padding:12px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:${netTextColor};">${netIco} Flujo libre</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">${flujoNeto>=0?'Puedes gastar hasta':'Te pasaste por'} $${money(Math.abs(flujoNeto))}</div>
+      </div>
+      <div style="font-size:20px;font-weight:900;color:${netTextColor};">${flujoNeto>=0?'+':''}$${money(flujoNeto)}</div>
     </div>
   `;
 
@@ -1224,12 +1268,14 @@ function renderCuentas(){
       </div>
       ${c.movimientos&&c.movimientos.length?`<div class="tbl-wrap" style="margin-top:10px;"><table>
         <thead><tr><th>Fecha</th><th>Concepto</th><th>Monto</th><th></th></tr></thead>
-        <tbody>${[...c.movimientos].reverse().map(m=>`<tr>
+        <tbody>${[...c.movimientos].reverse().map(m=>{
+          const ico = m.subTipo==='transferencia'?'💸':m.subTipo==='efectivo'?'💵':m.subTipo==='pago_tarjeta'?'💳':m.subTipo==='entre_cuentas'?'🔄':m.subTipo==='ajuste'?'⚙️':m.tipo==='deposito'?'＋':'−';
+          return `<tr>
           <td>${formatDate(m.fecha)}</td>
-          <td style="font-size:12px;">${esc(m.concepto||m.tipo||'—')}</td>
+          <td style="font-size:12px;">${ico} ${esc(m.concepto||m.tipo||'—')}</td>
           <td style="font-weight:700;color:${m.tipo==='deposito'?'var(--green)':'var(--red)'};">${m.tipo==='deposito'?'+':'-'}$${money(m.monto)}</td>
           <td><button class="btn icon danger small" onclick="delMovimiento('${c.id}','${m.id}')">✕</button></td>
-        </tr>`).join('')}</tbody>
+        </tr>`;}).join('')}</tbody>
       </table></div>`:''}
     </div>
   `).join(''):'<div class="empty"><div class="eico">🏦</div><p>Sin cuentas registradas</p></div>';
@@ -1258,30 +1304,52 @@ function sheetEditCuenta(i){
     <div class="field"><input id="ec_nombre" value="${esc(c.nombre||'')}"></div>
     <div class="flabel">Saldo actual</div>
     <div class="field"><span class="ico">$</span><input type="number" id="ec_saldo" value="${c.saldo||0}" step="0.01"></div>
+    <div style="font-size:11px;color:var(--muted);margin-top:6px;">Si cambias el saldo se registrará un ajuste automático por la diferencia.</div>
   `,[
     {label:'Cancelar',cls:'',action:closeSheet},
     {label:'💾 Guardar',cls:'primary',action:()=>{
       c.nombre=document.getElementById('ec_nombre').value.trim()||c.nombre;
-      c.saldo=parseFloat(document.getElementById('ec_saldo').value)||0;
+      const nuevoSaldo=parseFloat(document.getElementById('ec_saldo').value)||0;
+      const diff = nuevoSaldo - Number(c.saldo||0);
+      if(Math.abs(diff)>0.001){
+        // Registrar ajuste automático
+        c.movimientos=c.movimientos||[];
+        c.movimientos.push({
+          id:uid(),
+          tipo: diff>0?'deposito':'retiro',
+          subTipo:'ajuste',
+          concepto:'Ajuste de saldo',
+          fecha:today(),
+          monto:Math.abs(diff)
+        });
+      }
+      c.saldo=nuevoSaldo;
       save();closeSheet();renderCuentas();
     }}
   ]);
 }
 
-function sheetMovCuenta(i,tipo){
+function sheetMovCuenta(i,tipoBase){
   const c=db.cuentas[i];
-  openSheet(tipo==='deposito'?'Registrar depósito':'Registrar retiro',`
-    <div class="flabel">Concepto</div>
-    <div class="field"><input id="mc_concepto" placeholder="${tipo==='deposito'?'Ej. Nómina, transferencia...':'Ej. Pago renta, retiro...'}"></div>
+  const esDeposito = tipoBase==='deposito';
+  const otrosCuentas = db.cuentas.filter((_,idx)=>idx!==i).map(oc=>`<option value="entre:${oc.id}">${esc(oc.nombre)}</option>`).join('');
+
+  openSheet(esDeposito?'Registrar depósito':'Registrar movimiento',`
+    ${!esDeposito?`
+    <div class="flabel" style="margin-top:0;">Tipo de movimiento</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:4px;">
+      <button onclick="setSubTipoMov('transferencia')" id="smov_transferencia" style="padding:8px 4px;border-radius:10px;border:2px solid var(--accent);background:var(--accent-light);color:var(--accent);font-size:11px;font-weight:800;font-family:var(--font);cursor:pointer;">💸 Transferencia</button>
+      <button onclick="setSubTipoMov('efectivo')" id="smov_efectivo" style="padding:8px 4px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);font-size:11px;font-weight:800;font-family:var(--font);cursor:pointer;">💵 Retiro efectivo</button>
+      <button onclick="setSubTipoMov('pago_tarjeta')" id="smov_pago_tarjeta" style="padding:8px 4px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);font-size:11px;font-weight:800;font-family:var(--font);cursor:pointer;">💳 Pago tarjeta</button>
+      <button onclick="setSubTipoMov('entre_cuentas')" id="smov_entre_cuentas" style="padding:8px 4px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);font-size:11px;font-weight:800;font-family:var(--font);cursor:pointer;">🔄 Entre mis cuentas</button>
+    </div>
+    <div id="smov_hint" style="font-size:11px;color:var(--accent);margin-bottom:8px;padding:6px 8px;background:var(--accent-light);border-radius:8px;">💸 Aparecerá en Salidas del mes</div>
+    `:''}
+    <div class="flabel">${esDeposito?'Concepto':'Para / Concepto'}</div>
+    <div class="field"><input id="mc_concepto" placeholder="${esDeposito?'Ej. Nómina, depósito...':'Ej. Felipe, Renta, Cajero...'}"></div>
     <div class="frow">
-      <div>
-        <div class="flabel">Fecha</div>
-        <div class="field"><input type="date" id="mc_fecha" value="${today()}"></div>
-      </div>
-      <div>
-        <div class="flabel">Monto</div>
-        <div class="field"><span class="ico">$</span><input type="number" id="mc_monto" placeholder="0.00" step="0.01"></div>
-      </div>
+      <div><div class="flabel">Fecha</div><div class="field"><input type="date" id="mc_fecha" value="${today()}"></div></div>
+      <div><div class="flabel">Monto</div><div class="field"><span class="ico">$</span><input type="number" id="mc_monto" placeholder="0.00" step="0.01"></div></div>
     </div>
   `,[
     {label:'Cancelar',cls:'',action:closeSheet},
@@ -1289,12 +1357,51 @@ function sheetMovCuenta(i,tipo){
       const monto=parseFloat(document.getElementById('mc_monto').value);
       if(!monto||isNaN(monto)){alert('Ingresa un monto');return;}
       const concepto=document.getElementById('mc_concepto').value.trim();
+      const subTipo = esDeposito?'deposito':(window._subTipoMov||'transferencia');
+      const tipo = esDeposito?'deposito':'retiro';
       c.movimientos=c.movimientos||[];
-      c.movimientos.push({id:uid(),tipo,concepto,fecha:document.getElementById('mc_fecha').value,monto});
+      c.movimientos.push({id:uid(),tipo,subTipo,concepto,fecha:document.getElementById('mc_fecha').value,monto});
       c.saldo=tipo==='deposito'?Number(c.saldo||0)+monto:Math.max(0,Number(c.saldo||0)-monto);
       save();closeSheet();renderCuentas();
+      // Refrescar dashboard si está activo
+      if(currentPage==='dashboard') renderDashboard();
     }}
   ]);
+  window._subTipoMov='transferencia';
+  // Init hint
+  if(!esDeposito) setTimeout(()=>updateSubTipoHint('transferencia'),50);
+}
+
+function setSubTipoMov(sub){
+  window._subTipoMov=sub;
+  const tipos=['transferencia','efectivo','pago_tarjeta','entre_cuentas'];
+  const colores={transferencia:'var(--accent)',efectivo:'var(--green)',pago_tarjeta:'var(--purple)',entre_cuentas:'var(--amber)'};
+  const bgs={transferencia:'var(--accent-light)',efectivo:'var(--green-light)',pago_tarjeta:'var(--purple-light)',entre_cuentas:'var(--amber-light)'};
+  tipos.forEach(t=>{
+    const el=document.getElementById('smov_'+t);
+    if(!el) return;
+    const activo=t===sub;
+    el.style.border=activo?`2px solid ${colores[t]}`:'1px solid var(--border)';
+    el.style.background=activo?bgs[t]:'var(--bg3)';
+    el.style.color=activo?colores[t]:'var(--muted)';
+  });
+  updateSubTipoHint(sub);
+}
+
+function updateSubTipoHint(sub){
+  const el=document.getElementById('smov_hint');
+  if(!el) return;
+  const hints={
+    transferencia:'💸 Aparecerá en Salidas del mes',
+    efectivo:'💵 Aparecerá en Salidas del mes',
+    pago_tarjeta:'💳 NO aparece en Salidas (evita duplicados)',
+    entre_cuentas:'🔄 NO aparece en Salidas (es tuyo)'
+  };
+  const cols={transferencia:'var(--accent)',efectivo:'var(--green)',pago_tarjeta:'var(--muted)',entre_cuentas:'var(--muted)'};
+  const bgs={transferencia:'var(--accent-light)',efectivo:'var(--green-light)',pago_tarjeta:'var(--bg3)',entre_cuentas:'var(--bg3)'};
+  el.textContent=hints[sub]||'';
+  el.style.color=cols[sub];
+  el.style.background=bgs[sub];
 }
 
 document.getElementById('btnAddCuenta').addEventListener('click',()=>{
