@@ -744,16 +744,18 @@ function renderDashboard(){
   document.getElementById('dashSub').textContent = new Date().toLocaleDateString('es-MX',{month:'long',year:'numeric'});
 
   // KPIs
+  const flujoColor = flujoNeto>=0?'var(--green)':'var(--red)';
+  const flujoIco   = flujoNeto>=0?'📈':'⚠️';
   document.getElementById('kpiGrid').innerHTML=`
     <div class="kpi" onclick="showDetalle('ingresos')" style="cursor:pointer;">
       <div class="kico">💰</div><div class="klbl">Ingresos mes</div>
       <div class="kval" style="color:var(--green);">$${money(totalIng)}</div>
       <div class="ksub">${ingMes.length} registro${ingMes.length!==1?'s':''} · Ver →</div>
     </div>
-    <div class="kpi" onclick="showDetalle('salidas')" style="cursor:pointer;">
-      <div class="kico">📉</div><div class="klbl">Gastos del mes</div>
-      <div class="kval" style="color:var(--red);">$${money(totalSalidas)}</div>
-      <div class="ksub">Personal $${money(gastosPersonal)} · Neg $${money(gastosNegocio)} · Ver →</div>
+    <div class="kpi" onclick="showDetalle('flujo')" style="cursor:pointer;">
+      <div class="kico">${flujoIco}</div><div class="klbl">Flujo libre</div>
+      <div class="kval" style="color:${flujoColor};">${flujoNeto>=0?'+':''}$${money(flujoNeto)}</div>
+      <div class="ksub">${flujoNeto>=0?'Disponible para gastar':'Te pasaste · Ver →'}</div>
     </div>
     <div class="kpi" onclick="showDetalle('cuentas')" style="cursor:pointer;">
       <div class="kico">🏦</div><div class="klbl">En cuentas</div>
@@ -1717,7 +1719,83 @@ function showDetalle(tipo){
   const mes = currentMonth();
   let title='', body='';
 
-  if(tipo==='ingresos'){
+  if(tipo==='flujo'){
+    // Recalculate everything fresh
+    const ing     = db.ingresos.filter(x=>(x.fecha||'').startsWith(mes)).reduce((s,x)=>s+Number(x.monto||0),0);
+    const gastos  = db.gastos.filter(x=>(x.fecha||'').startsWith(mes));
+    const totalG  = gastos.reduce((s,x)=>s+Number(x.monto||0),0);
+    const personal= gastos.filter(x=>!esGastoNegocio(x)).reduce((s,x)=>s+Number(x.monto||0),0);
+    const negocio = gastos.filter(x=>esGastoNegocio(x)).reduce((s,x)=>s+Number(x.monto||0),0);
+    const movSal  = db.cuentas.flatMap(c=>(c.movimientos||[]).filter(m=>m.tipo==='retiro'&&(m.subTipo==='transferencia'||m.subTipo==='efectivo')&&(m.fecha||'').startsWith(mes)).map(m=>({...m,cuentaNom:c.nombre})));
+    const totalMov= movSal.reduce((s,m)=>s+Number(m.monto||0),0);
+    const pagosFijos = db.pagos.filter(x=>(x.fecha||'').startsWith(mes)&&x.tipo!=='tarjeta').reduce((s,x)=>s+Number(x.monto||0),0);
+    const totalCuotas= db.creditos.reduce((s,c)=>s+Number(c.cuota||0),0);
+    const totalFijos = pagosFijos + totalCuotas;
+    const dispReal   = ing - totalFijos;
+    const totalSal   = totalG + totalMov;
+    const flujoL     = dispReal - totalSal;
+    const fc = flujoL>=0?'var(--green)':'var(--red)';
+    const fb = flujoL>=0?'var(--green-light)':'var(--red-light)';
+
+    title = flujoL>=0?'📈 Flujo libre':'⚠️ Flujo del mes';
+    body = `
+      <div style="background:${fb};border-radius:12px;padding:14px;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="font-size:13px;font-weight:800;color:${fc};">Flujo libre</span>
+          <span style="font-size:24px;font-weight:900;color:${fc};">${flujoL>=0?'+':''}$${money(flujoL)}</span>
+        </div>
+        <div style="font-size:12px;color:var(--muted);">${flujoL>=0?'Puedes gastar hasta $'+money(flujoL)+' más este mes':'Te pasaste por $'+money(Math.abs(flujoL))}</div>
+      </div>
+
+      <!-- Paso 1: Ingresos -->
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
+        <span style="font-size:13px;font-weight:700;">💰 Ingresos del mes</span>
+        <span style="font-size:15px;font-weight:900;color:var(--green);">+$${money(ing)}</span>
+      </div>
+
+      <!-- Paso 2: Compromisos fijos -->
+      <div style="background:var(--red-light);border-radius:10px;padding:10px 12px;margin:8px 0;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+          <span style="font-size:13px;font-weight:800;color:var(--red);">🔒 Compromisos fijos</span>
+          <span style="font-size:13px;font-weight:900;color:var(--red);">-$${money(totalFijos)}</span>
+        </div>
+        ${db.creditos.map(c=>`<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);padding:2px 0;border-top:1px solid rgba(220,38,38,.1);">
+          <span>🏛️ ${esc(c.nombre)}</span><span>-$${money(c.cuota)}</span></div>`).join('')}
+        ${pagosFijos>0?`<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);padding:2px 0;border-top:1px solid rgba(220,38,38,.1);"><span>📋 Pagos fijos</span><span>-$${money(pagosFijos)}</span></div>`:''}
+      </div>
+
+      <!-- Disponible real -->
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
+        <span style="font-size:13px;font-weight:700;">💰 Disponible real</span>
+        <span style="font-size:15px;font-weight:900;color:${dispReal>=0?'var(--accent)':'var(--red)'};">${dispReal>=0?'+':''}$${money(dispReal)}</span>
+      </div>
+
+      <!-- Paso 3: Gastos variables -->
+      <div style="background:var(--bg3);border-radius:10px;padding:10px 12px;margin:8px 0;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+          <span style="font-size:13px;font-weight:800;color:var(--text);">🛍️ Gastos variables</span>
+          <span style="font-size:13px;font-weight:900;color:var(--red);">-$${money(totalSal)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);padding:2px 0;border-top:1px solid var(--border);">
+          <span>👤 Personal</span><span>$${money(personal)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);padding:2px 0;border-top:1px solid var(--border);">
+          <span>🏢 Negocio</span><span>$${money(negocio)}</span>
+        </div>
+        ${totalMov>0?`<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);padding:2px 0;border-top:1px solid var(--border);">
+          <span>💸 Transferencias / Efectivo</span><span>$${money(totalMov)}</span>
+        </div>`:''}
+      </div>
+
+      <!-- Resultado -->
+      <div style="background:${fb};border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:13px;font-weight:800;color:${fc};">${flujoL>=0?'✅ Te queda':'❌ Te pasaste'}</span>
+        <span style="font-size:18px;font-weight:900;color:${fc};">${flujoL>=0?'+':''}$${money(flujoL)}</span>
+      </div>
+    `;
+  }
+
+  else if(tipo==='ingresos'){
     title='💰 Ingresos del mes';
     const items = db.ingresos.filter(x=>(x.fecha||'').startsWith(mes));
     const total = items.reduce((s,x)=>s+Number(x.monto||0),0);
@@ -1740,41 +1818,48 @@ function showDetalle(tipo){
     title='📉 Salidas del mes';
     const gastos = db.gastos.filter(x=>(x.fecha||'').startsWith(mes));
     const pagos  = db.pagos.filter(x=>(x.fecha||'').startsWith(mes)&&x.tipo!=='tarjeta');
-    const cuotas = db.creditos;
-    const totalG = gastos.reduce((s,x)=>s+Number(x.monto||0),0);
-    const totalP = pagos.reduce((s,x)=>s+Number(x.monto||0),0);
-    const totalC = cuotas.reduce((s,x)=>s+Number(x.cuota||0),0);
-    const total  = totalG+totalP+totalC;
-    const personal = gastos.filter(x=>!esGastoNegocio(x)).reduce((s,x)=>s+Number(x.monto||0),0);
-    const negocio  = gastos.filter(x=>esGastoNegocio(x)).reduce((s,x)=>s+Number(x.monto||0),0);
+    // Transferencias y retiros efectivo de cuentas
+    const movSalidasDet = db.cuentas.flatMap(c=>(c.movimientos||[]).filter(m=>
+      m.tipo==='retiro'&&(m.subTipo==='transferencia'||m.subTipo==='efectivo')&&(m.fecha||'').startsWith(mes)
+    ).map(m=>({...m, cuentaNom: c.nombre})));
+    const totalG  = gastos.reduce((s,x)=>s+Number(x.monto||0),0);
+    const totalP  = pagos.reduce((s,x)=>s+Number(x.monto||0),0);
+    const totalMov= movSalidasDet.reduce((s,m)=>s+Number(m.monto||0),0);
+    const total   = totalG + totalP + totalMov;
+    const personal= gastos.filter(x=>!esGastoNegocio(x)).reduce((s,x)=>s+Number(x.monto||0),0);
+    const negocio = gastos.filter(x=>esGastoNegocio(x)).reduce((s,x)=>s+Number(x.monto||0),0);
 
     body = `<div style="margin-bottom:12px;padding:12px;background:var(--red-light);border-radius:10px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <span style="font-size:13px;font-weight:700;color:var(--red);">Total salidas</span>
+        <span style="font-size:13px;font-weight:700;color:var(--red);">Total gastos variables</span>
         <span style="font-size:20px;font-weight:900;color:var(--red);">-$${money(total)}</span>
       </div>
-      <div style="display:flex;gap:8px;">
+      <div style="display:flex;gap:6px;">
         <div style="flex:1;background:rgba(255,255,255,.6);border-radius:8px;padding:8px;text-align:center;">
           <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">👤 Personal</div>
-          <div style="font-size:15px;font-weight:900;color:var(--red);">$${money(personal)}</div>
+          <div style="font-size:14px;font-weight:900;color:var(--red);">$${money(personal)}</div>
         </div>
         <div style="flex:1;background:rgba(255,255,255,.6);border-radius:8px;padding:8px;text-align:center;">
           <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">🏢 Negocio</div>
-          <div style="font-size:15px;font-weight:900;color:var(--purple);">$${money(negocio)}</div>
+          <div style="font-size:14px;font-weight:900;color:var(--purple);">$${money(negocio)}</div>
         </div>
+        ${totalMov>0?`<div style="flex:1;background:rgba(255,255,255,.6);border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">💸 Transfer.</div>
+          <div style="font-size:14px;font-weight:900;color:var(--amber);">$${money(totalMov)}</div>
+        </div>`:''}
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:8px;text-align:center;">Los pagos a tarjetas de crédito no se incluyen (ya contados como gastos)</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;text-align:center;">Créditos y pagos fijos se ven en la sección 🔒 Compromisos</div>
     </div>`;
 
     if(gastos.length){
-      const porTarjeta = {};
+      const porOrigen = {};
       gastos.forEach(g=>{
         const n = tarjetaNombre(g.tarjetaId)||cuentaNombre(g.cuentaId)||'Efectivo';
-        porTarjeta[n]=porTarjeta[n]||[];
-        porTarjeta[n].push(g);
+        porOrigen[n]=porOrigen[n]||[];
+        porOrigen[n].push(g);
       });
-      body += `<div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 8px;">🛍️ Gastos · $${money(totalG)}</div>`;
-      Object.entries(porTarjeta).forEach(([nombre,gs])=>{
+      body += `<div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 8px;">🛍️ Compras y gastos · $${money(totalG)}</div>`;
+      Object.entries(porOrigen).forEach(([nombre,gs])=>{
         const sub=gs.reduce((s,x)=>s+Number(x.monto||0),0);
         body+=`<div style="background:var(--bg3);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
           <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
@@ -1789,6 +1874,17 @@ function showDetalle(tipo){
         </div>`;
       });
     }
+
+    if(movSalidasDet.length){
+      body+=`<div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 8px;">💸 Transferencias / Efectivo · $${money(totalMov)}</div>`;
+      body+=movSalidasDet.sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||'')).map(m=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
+          <div style="width:34px;height:34px;border-radius:9px;background:var(--amber-light);display:grid;place-items:center;font-size:15px;">${m.subTipo==='transferencia'?'💸':'💵'}</div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:700;">${esc(m.concepto||'—')}</div><div style="font-size:11px;color:var(--muted);">${esc(m.cuentaNom)} · ${formatDate(m.fecha)}</div></div>
+          <div style="font-size:13px;font-weight:900;color:var(--amber);">-$${money(m.monto)}</div>
+        </div>`).join('');
+    }
+
     if(pagos.length){
       body+=`<div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 8px;">📋 Pagos fijos · $${money(totalP)}</div>`;
       body+=pagos.sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(p=>`
@@ -1796,15 +1892,6 @@ function showDetalle(tipo){
           <div style="width:34px;height:34px;border-radius:9px;background:var(--amber-light);display:grid;place-items:center;font-size:15px;">📋</div>
           <div style="flex:1;"><div style="font-size:13px;font-weight:700;">${esc(p.nombre)}</div><div style="font-size:11px;color:var(--muted);">${formatDate(p.fecha)}</div></div>
           <div style="font-size:13px;font-weight:900;color:var(--amber);">-$${money(p.monto)}</div>
-        </div>`).join('');
-    }
-    if(cuotas.length){
-      body+=`<div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 8px;">🏛️ Créditos · $${money(totalC)}</div>`;
-      body+=cuotas.map(c=>`
-        <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
-          <div style="width:34px;height:34px;border-radius:9px;background:var(--purple-light);display:grid;place-items:center;font-size:15px;">🏛️</div>
-          <div style="flex:1;"><div style="font-size:13px;font-weight:700;">${esc(c.nombre)}</div><div style="font-size:11px;color:var(--muted);">Cuota mensual</div></div>
-          <div style="font-size:13px;font-weight:900;color:var(--purple);">-$${money(c.cuota)}</div>
         </div>`).join('');
     }
   }
