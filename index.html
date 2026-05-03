@@ -101,7 +101,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);overscroll-b
   padding-bottom:env(safe-area-inset-bottom);z-index:50;overflow-x:auto;scrollbar-width:none;
 }
 .bottomnav::-webkit-scrollbar{display:none;}
-.ni{flex:0 0 calc(100vw / 7);min-width:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;border:none;background:transparent;color:var(--muted);font-family:var(--font);transition:color .15s;padding:6px 2px;height:var(--nav-h);-webkit-appearance:none;appearance:none;touch-action:manipulation;}
+.ni{flex:0 0 calc(100vw / 8);min-width:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;border:none;background:transparent;color:var(--muted);font-family:var(--font);transition:color .15s;padding:6px 2px;height:var(--nav-h);-webkit-appearance:none;appearance:none;touch-action:manipulation;}
 .ni.active{color:var(--accent);}
 .ni-wrap{padding:3px 10px;border-radius:10px;transition:background .15s;}
 .ni.active .ni-wrap{background:var(--accent-light);}
@@ -389,7 +389,7 @@ tbody tr:last-child td{border-bottom:none;}
           <div class="flabel">Concepto</div>
           <div class="field"><input id="cq_concepto" placeholder="Que compraste?"></div>
           <div class="frow">
-            <div><div class="flabel">Categoria</div><div class="field"><select id="cq_cat"><option>Comida</option><option>Gasolina</option><option>Ropa</option><option>Servicios</option><option>Entretenimiento</option><option>Salud</option><option>Viajes</option><option>Negocio</option><option>Otro</option></select></div></div>
+            <div><div class="flabel">Categoria <button onclick="sheetCategorias()" style="font-size:10px;font-weight:700;color:var(--accent);background:none;border:none;cursor:pointer;font-family:var(--font);">＋</button></div><div class="field"><select id="cq_cat"></select></div></div>
             <div><div class="flabel">Fecha</div><div class="field"><input type="date" id="cq_fecha"></div></div>
           </div>
           <button onclick="registrarCompraRapida()" style="width:100%;margin-top:16px;padding:16px;background:#2563eb;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:900;font-family:var(--font);cursor:pointer;">Registrar compra</button>
@@ -422,7 +422,32 @@ tbody tr:last-child td{border-bottom:none;}
     <button class="ni" id="nav-compras" onclick="goPage('compras')">
       <div class="ni-wrap"><span class="nico">🛍️</span></div><span class="nlbl">Compras</span>
     </button>
+    <button class="ni" id="nav-presupuesto" onclick="goPage('presupuesto')">
+      <div class="ni-wrap"><span class="nico">🎯</span></div><span class="nlbl">Presupuesto</span>
+    </button>
   </nav>
+
+    <!-- PRESUPUESTO -->
+    <div class="page" id="page-presupuesto">
+      <div style="padding:16px 0 4px;">
+        <div class="sh">
+          <div><h2>Presupuesto</h2><div class="sub">Punto de equilibrio mensual</div></div>
+          <button class="btn primary small" onclick="sheetAddPresupuesto()">＋ Categoría</button>
+        </div>
+
+        <!-- Resumen general -->
+        <div id="pres_resumen"></div>
+
+        <!-- Punto de equilibrio -->
+        <div id="pres_equilibrio"></div>
+
+        <!-- Categorías -->
+        <div id="pres_categorias"></div>
+
+        <!-- Gastos sin presupuesto -->
+        <div id="pres_sin_categoria"></div>
+      </div>
+    </div>
 
     <!-- HISTORIAL -->
     <div class="page" id="page-historial">
@@ -519,6 +544,9 @@ function setCqTipo(tipo){
 
 function renderCompras(){
   if(!document.getElementById('cq_fuente')) return;
+  // Populate categories
+  const catSel = document.getElementById('cq_cat');
+  if(catSel) catSel.innerHTML = catsOpts();
   setCqTipo(_cqTipo);
   document.getElementById('cq_fecha').value=today();
   renderCqHistorial();
@@ -632,6 +660,7 @@ function renderPage(p){
   else if(p==='pagos') renderPagos();
   else if(p==='historial') renderHistorial();
   else if(p==='compras') renderCompras();
+  else if(p==='presupuesto') renderPresupuesto();
 }
 
 // ── SHEET ───────────────────────────────────────────────────
@@ -676,31 +705,31 @@ function renderDashboard(){
 
   document.getElementById('dashSub').textContent = new Date().toLocaleDateString('es-MX',{month:'long',year:'numeric'});
 
-  // KPIs
+  // KPIs — clickables
   document.getElementById('kpiGrid').innerHTML=`
-    <div class="kpi">
+    <div class="kpi" onclick="showDetalle('ingresos')" style="cursor:pointer;">
       <div class="kico">💰</div>
       <div class="klbl">Ingresos mes</div>
       <div class="kval" style="color:var(--green);">$${money(totalIng)}</div>
-      <div class="ksub">${ingMes.length} registro${ingMes.length!==1?'s':''}</div>
+      <div class="ksub">${ingMes.length} registro${ingMes.length!==1?'s':''} · Ver →</div>
     </div>
-    <div class="kpi">
+    <div class="kpi" onclick="showDetalle('salidas')" style="cursor:pointer;">
       <div class="kico">📉</div>
       <div class="klbl">Salidas mes</div>
       <div class="kval" style="color:var(--red);">$${money(totalSalidas)}</div>
-      <div class="ksub">Gastos + pagos</div>
+      <div class="ksub">Gastos + pagos · Ver →</div>
     </div>
-    <div class="kpi">
+    <div class="kpi" onclick="showDetalle('cuentas')" style="cursor:pointer;">
       <div class="kico">🏦</div>
       <div class="klbl">En cuentas</div>
       <div class="kval" style="color:var(--accent);">$${money(totalCuentas)}</div>
-      <div class="ksub">${db.cuentas.length} cuenta${db.cuentas.length!==1?'s':''}</div>
+      <div class="ksub">${db.cuentas.length} cuenta${db.cuentas.length!==1?'s':''} · Ver →</div>
     </div>
-    <div class="kpi">
+    <div class="kpi" onclick="showDetalle('deuda')" style="cursor:pointer;">
       <div class="kico">💳</div>
       <div class="klbl">Deuda total</div>
       <div class="kval" style="color:${totalDeuda>0?'var(--red)':'var(--green)'};">$${money(totalDeuda)}</div>
-      <div class="ksub">${db.tarjetas.length} tarjeta${db.tarjetas.length!==1?'s':''}</div>
+      <div class="ksub">${db.tarjetas.length} tarjeta${db.tarjetas.length!==1?'s':''} · Ver →</div>
     </div>
   `;
 
@@ -976,7 +1005,6 @@ function delGasto(id){
 }
 
 function sheetNuevoGasto(t){
-  const cats = ['Comida','Gasolina','Ropa','Servicios','Entretenimiento','Salud','Viajes','Negocio','Otro'];
   openSheet('Registrar gasto — '+t.nombre, `
     <div class="flabel">Concepto</div>
     <div class="field"><input id="ng_concepto" placeholder="¿En qué gastaste?"></div>
@@ -990,8 +1018,8 @@ function sheetNuevoGasto(t){
         <div class="field"><span class="ico">$</span><input type="number" id="ng_monto" placeholder="0.00" step="0.01"></div>
       </div>
     </div>
-    <div class="flabel">Categoría</div>
-    <div class="field"><select id="ng_cat">${cats.map(c=>`<option>${c}</option>`).join('')}</select></div>
+    <div class="flabel" style="display:flex;justify-content:space-between;align-items:center;">Categoría <button onclick="sheetCategorias()" style="font-size:10px;font-weight:700;color:var(--accent);background:none;border:none;cursor:pointer;font-family:var(--font);">＋ Gestionar</button></div>
+    <div class="field"><select id="ng_cat">${catsOpts()}</select></div>
   `,[
     {label:'Cancelar',cls:'',action:closeSheet},
     {label:'＋ Guardar',cls:'primary',action:()=>{
@@ -999,7 +1027,6 @@ function sheetNuevoGasto(t){
       if(!monto||isNaN(monto)){alert('Ingresa un monto');return;}
       const concepto=document.getElementById('ng_concepto').value.trim();
       if(!concepto){alert('Ingresa el concepto');return;}
-      // Descontar del disponible
       t.disponible=Math.max(0,Number(t.disponible||0)-monto);
       db.gastos.push({id:uid(),tarjetaId:t.id,concepto,fecha:document.getElementById('ng_fecha').value,monto,categoria:document.getElementById('ng_cat').value});
       save();closeSheet();renderTarjetaDetail();
@@ -1129,11 +1156,12 @@ function renderCuentas(){
         <button class="btn small danger full" onclick="sheetMovCuenta(${i},'retiro')">− Retiro</button>
       </div>
       ${c.movimientos&&c.movimientos.length?`<div class="tbl-wrap" style="margin-top:10px;"><table>
-        <thead><tr><th>Fecha</th><th>Concepto</th><th>Monto</th></tr></thead>
-        <tbody>${[...c.movimientos].reverse().slice(0,5).map(m=>`<tr>
+        <thead><tr><th>Fecha</th><th>Concepto</th><th>Monto</th><th></th></tr></thead>
+        <tbody>${[...c.movimientos].reverse().map(m=>`<tr>
           <td>${formatDate(m.fecha)}</td>
-          <td>${esc(m.concepto||m.tipo||'—')}</td>
-          <td class="${m.tipo==='deposito'?'td-green':'td-red'}" style="font-weight:700;">${m.tipo==='deposito'?'+':'-'}$${money(m.monto)}</td>
+          <td style="font-size:12px;">${esc(m.concepto||m.tipo||'—')}</td>
+          <td style="font-weight:700;color:${m.tipo==='deposito'?'var(--green)':'var(--red)'};">${m.tipo==='deposito'?'+':'-'}$${money(m.monto)}</td>
+          <td><button class="btn icon danger small" onclick="delMovimiento('${c.id}','${m.id}')">✕</button></td>
         </tr>`).join('')}</tbody>
       </table></div>`:''}
     </div>
@@ -1141,6 +1169,20 @@ function renderCuentas(){
 }
 
 function delCuenta(i){ if(!confirm('¿Eliminar esta cuenta?')) return; db.cuentas.splice(i,1); save(); renderCuentas(); }
+
+function delMovimiento(cuentaId, movId){
+  const c = db.cuentas.find(x=>x.id===cuentaId);
+  if(!c) return;
+  const m = (c.movimientos||[]).find(x=>x.id===movId);
+  if(!m) return;
+  if(!confirm('¿Eliminar este movimiento de $'+money(m.monto)+'?')) return;
+  // Revertir saldo
+  if(m.tipo==='deposito') c.saldo = Math.max(0, Number(c.saldo||0) - Number(m.monto||0));
+  else c.saldo = Number(c.saldo||0) + Number(m.monto||0);
+  c.movimientos = c.movimientos.filter(x=>x.id!==movId);
+  save();
+  renderCuentas();
+}
 
 function sheetEditCuenta(i){
   const c=db.cuentas[i];
@@ -1494,6 +1536,384 @@ function mesLabel(m){
   const names=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   const [y,mo]=m.split('-');
   return names[parseInt(mo)-1]+' '+y.slice(2);
+}
+
+// ── DETALLE KPI ─────────────────────────────────────────────
+function showDetalle(tipo){
+  const mes = currentMonth();
+  let title='', body='';
+
+  if(tipo==='ingresos'){
+    title='💰 Ingresos del mes';
+    const items = db.ingresos.filter(x=>(x.fecha||'').startsWith(mes));
+    const total = items.reduce((s,x)=>s+Number(x.monto||0),0);
+    body = `<div style="margin-bottom:12px;padding:12px;background:var(--green-light);border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:13px;font-weight:700;color:var(--green);">Total del mes</span>
+      <span style="font-size:20px;font-weight:900;color:var(--green);">+$${money(total)}</span>
+    </div>` +
+    (items.length ? items.sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(x=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+        <div style="width:36px;height:36px;border-radius:9px;background:var(--green-light);display:grid;place-items:center;font-size:16px;">💰</div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:700;">${esc(x.concepto||x.tipo||'Ingreso')}</div>
+          <div style="font-size:11px;color:var(--muted);">${x.tipo==='sueldo'?'Sueldo':'Emprendimiento'} · ${formatDate(x.fecha)}</div>
+        </div>
+        <div style="font-size:14px;font-weight:900;color:var(--green);">+$${money(x.monto)}</div>
+      </div>`).join('') : '<div class="empty"><p>Sin ingresos este mes</p></div>');
+  }
+
+  else if(tipo==='salidas'){
+    title='📉 Salidas del mes';
+    const gastos = db.gastos.filter(x=>(x.fecha||'').startsWith(mes));
+    const pagos  = db.pagos.filter(x=>(x.fecha||'').startsWith(mes)&&x.tipo!=='tarjeta');
+    const cuotas = db.creditos;
+    const totalG = gastos.reduce((s,x)=>s+Number(x.monto||0),0);
+    const totalP = pagos.reduce((s,x)=>s+Number(x.monto||0),0);
+    const totalC = cuotas.reduce((s,x)=>s+Number(x.cuota||0),0);
+    const total  = totalG+totalP+totalC;
+
+    body = `<div style="margin-bottom:12px;padding:12px;background:var(--red-light);border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:13px;font-weight:700;color:var(--red);">Total salidas</span>
+      <span style="font-size:20px;font-weight:900;color:var(--red);">-$${money(total)}</span>
+    </div>`;
+
+    if(gastos.length){
+      // Agrupar por tarjeta
+      const porTarjeta = {};
+      gastos.forEach(g=>{ const n=tarjetaNombre(g.tarjetaId)||'Sin tarjeta'; porTarjeta[n]=(porTarjeta[n]||[]); porTarjeta[n].push(g); });
+      body += `<div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 8px;">💳 Gastos por tarjeta · $${money(totalG)}</div>`;
+      Object.entries(porTarjeta).forEach(([nombre,gs])=>{
+        const sub = gs.reduce((s,x)=>s+Number(x.monto||0),0);
+        body += `<div style="background:var(--bg3);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-size:13px;font-weight:800;">💳 ${esc(nombre)}</span>
+            <span style="font-size:13px;font-weight:900;color:var(--red);">-$${money(sub)}</span>
+          </div>
+          ${gs.sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(g=>`
+            <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid var(--border);font-size:12px;">
+              <span style="color:var(--text);">${esc(g.concepto||'Gasto')} <span style="color:var(--muted);">· ${esc(g.categoria||'')} · ${formatDate(g.fecha)}</span></span>
+              <span style="font-weight:700;color:var(--red);white-space:nowrap;margin-left:8px;">-$${money(g.monto)}</span>
+            </div>`).join('')}
+        </div>`;
+      });
+    }
+
+    if(pagos.length){
+      body += `<div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 8px;">📋 Pagos manuales · $${money(totalP)}</div>`;
+      body += pagos.sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(p=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
+          <div style="width:34px;height:34px;border-radius:9px;background:var(--amber-light);display:grid;place-items:center;font-size:15px;">📋</div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:700;">${esc(p.nombre)}</div><div style="font-size:11px;color:var(--muted);">${formatDate(p.fecha)}</div></div>
+          <div style="font-size:13px;font-weight:900;color:var(--amber);">-$${money(p.monto)}</div>
+        </div>`).join('');
+    }
+
+    if(cuotas.length){
+      body += `<div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 8px;">🏛️ Créditos bancarios · $${money(totalC)}</div>`;
+      body += cuotas.map(c=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
+          <div style="width:34px;height:34px;border-radius:9px;background:var(--purple-light);display:grid;place-items:center;font-size:15px;">🏛️</div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:700;">${esc(c.nombre)}</div><div style="font-size:11px;color:var(--muted);">Cuota mensual</div></div>
+          <div style="font-size:13px;font-weight:900;color:var(--purple);">-$${money(c.cuota)}</div>
+        </div>`).join('');
+    }
+  }
+
+  else if(tipo==='cuentas'){
+    title='🏦 Saldo en cuentas';
+    const total = db.cuentas.reduce((s,c)=>s+Number(c.saldo||0),0);
+    body = `<div style="margin-bottom:12px;padding:12px;background:var(--accent-light);border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:13px;font-weight:700;color:var(--accent);">Total disponible</span>
+      <span style="font-size:20px;font-weight:900;color:var(--accent);">$${money(total)}</span>
+    </div>` +
+    db.cuentas.map(c=>`
+      <div style="background:var(--bg3);border-radius:10px;padding:12px;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${c.movimientos&&c.movimientos.length?'8':'0'}px;">
+          <span style="font-size:14px;font-weight:800;">🏦 ${esc(c.nombre)}</span>
+          <span style="font-size:16px;font-weight:900;color:var(--accent);">$${money(c.saldo)}</span>
+        </div>
+        ${c.movimientos&&c.movimientos.length?`
+          ${[...c.movimientos].reverse().slice(0,5).map(m=>`
+            <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid var(--border);font-size:12px;">
+              <span>${esc(m.concepto||m.tipo||'—')} · ${formatDate(m.fecha)}</span>
+              <span style="font-weight:700;color:${m.tipo==='deposito'?'var(--green)':'var(--red)'};">${m.tipo==='deposito'?'+':'-'}$${money(m.monto)}</span>
+            </div>`).join('')}`:''
+        }
+      </div>`).join('');
+  }
+
+  else if(tipo==='deuda'){
+    title='💳 Deuda por tarjeta';
+    const total = db.tarjetas.reduce((s,t)=>s+Math.max(0,Number(t.limite||0)-Number(t.disponible||0)),0);
+    body = `<div style="margin-bottom:12px;padding:12px;background:var(--red-light);border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:13px;font-weight:700;color:var(--red);">Deuda total</span>
+      <span style="font-size:20px;font-weight:900;color:var(--red);">$${money(total)}</span>
+    </div>` +
+    db.tarjetas.map(t=>{
+      const l=Number(t.limite||0),d=Number(t.disponible||0),deu=Math.max(0,l-d);
+      const pct=l>0?Math.min(100,Math.round((deu/l)*100)):0;
+      const col=pct>=80?'var(--red)':pct>=50?'var(--amber)':'var(--green)';
+      const mes=currentMonth();
+      const gastosMesTarjeta=db.gastos.filter(x=>x.tarjetaId===t.id&&(x.fecha||'').startsWith(mes));
+      const totalMes=gastosMesTarjeta.reduce((s,x)=>s+Number(x.monto||0),0);
+      return `<div style="background:var(--bg3);border-radius:10px;padding:12px;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-size:14px;font-weight:800;">💳 ${esc(t.nombre)}</span>
+          <span style="font-size:16px;font-weight:900;color:${col};">$${money(deu)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:6px;">
+          <span>Disponible: <b style="color:var(--green);">$${money(d)}</b></span>
+          <span>Límite: $${money(l)}</span>
+        </div>
+        <div style="height:5px;background:var(--bg2);border-radius:999px;overflow:hidden;margin-bottom:6px;">
+          <div style="height:100%;width:${pct}%;background:${col};border-radius:999px;"></div>
+        </div>
+        ${gastosMesTarjeta.length?`
+          <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px;">Gastos este mes · $${money(totalMes)}</div>
+          ${gastosMesTarjeta.sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(g=>`
+            <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid var(--border);font-size:12px;">
+              <span>${esc(g.concepto||'Gasto')} <span style="color:var(--muted);">· ${esc(g.categoria||'')} · ${formatDate(g.fecha)}</span></span>
+              <span style="font-weight:700;color:var(--red);white-space:nowrap;margin-left:8px;">-$${money(g.monto)}</span>
+            </div>`).join('')}`:'<div style="font-size:12px;color:var(--muted);text-align:center;padding:4px 0;">Sin gastos este mes</div>'
+        }
+      </div>`;
+    }).join('');
+  }
+
+  openSheet(title, body, [{label:'Cerrar',cls:'',action:closeSheet}]);
+}
+
+// ── CATEGORÍAS PERSONALIZADAS ────────────────────────────────
+function getCats(){
+  const base=['Comida','Gasolina','Ropa','Servicios','Entretenimiento','Salud','Viajes','Negocio','Otro'];
+  const custom = db.categorias||[];
+  return [...new Set([...base,...custom])].sort();
+}
+function catsOpts(seleccionada){
+  return getCats().map(c=>`<option${c===seleccionada?' selected':''}>${esc(c)}</option>`).join('');
+}
+function sheetCategorias(){
+  function renderCatBody(){
+    const cats = getCats();
+    const base = ['Comida','Gasolina','Ropa','Servicios','Entretenimiento','Salud','Viajes','Negocio','Otro'];
+    return `<div style="margin-bottom:12px;">
+      ${cats.map(c=>`
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
+          <span style="flex:1;font-size:14px;font-weight:600;">${esc(c)}</span>
+          ${base.includes(c)?'<span style="font-size:10px;color:var(--muted);background:var(--bg3);padding:2px 8px;border-radius:999px;">base</span>':
+          `<button class="btn small danger" onclick="delCategoria('${esc(c)}')">✕</button>`}
+        </div>`).join('')}
+    </div>
+    <div class="flabel">Nueva categoría</div>
+    <div style="display:flex;gap:8px;">
+      <div class="field" style="flex:1;"><input id="nueva_cat" placeholder="Ej. Mascotas, Educación..."></div>
+      <button class="btn primary" onclick="addCategoria()">＋</button>
+    </div>`;
+  }
+  openSheet('🏷️ Categorías', renderCatBody(), [{label:'Listo',cls:'primary',action:closeSheet}]);
+}
+function addCategoria(){
+  const val = document.getElementById('nueva_cat').value.trim();
+  if(!val){alert('Escribe un nombre');return;}
+  db.categorias = db.categorias||[];
+  if(getCats().map(c=>c.toLowerCase()).includes(val.toLowerCase())){alert('Ya existe');return;}
+  db.categorias.push(val);
+  save();
+  // Rerender sheet body
+  document.getElementById('sheetBody').innerHTML = `<div style="margin-bottom:12px;">
+    ${getCats().map(c=>{
+      const base=['Comida','Gasolina','Ropa','Servicios','Entretenimiento','Salud','Viajes','Negocio','Otro'];
+      return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
+        <span style="flex:1;font-size:14px;font-weight:600;">${esc(c)}</span>
+        ${base.includes(c)?'<span style="font-size:10px;color:var(--muted);background:var(--bg3);padding:2px 8px;border-radius:999px;">base</span>':
+        `<button class="btn small danger" onclick="delCategoria('${esc(c)}')">✕</button>`}
+      </div>`;}).join('')}
+  </div>
+  <div class="flabel">Nueva categoría</div>
+  <div style="display:flex;gap:8px;">
+    <div class="field" style="flex:1;"><input id="nueva_cat" placeholder="Ej. Mascotas, Educación..."></div>
+    <button class="btn primary" onclick="addCategoria()">＋</button>
+  </div>`;
+}
+function delCategoria(cat){
+  if(!confirm('¿Eliminar la categoría "'+cat+'"?')) return;
+  db.categorias=(db.categorias||[]).filter(c=>c!==cat);
+  save();
+  sheetCategorias();
+}
+
+// ── PRESUPUESTO ──────────────────────────────────────────────
+function renderPresupuesto(){
+  const mes = currentMonth();
+  if(!db.presupuesto) db.presupuesto = [];
+
+  // Calcular gastos reales del mes por categoría
+  const gastosMes = db.gastos.filter(x=>(x.fecha||'').startsWith(mes));
+  const pagosMes  = db.pagos.filter(x=>(x.fecha||'').startsWith(mes)&&x.tipo!=='tarjeta');
+  const cuotas    = db.creditos;
+
+  // Ingresos del mes
+  const totalIng = db.ingresos.filter(x=>(x.fecha||'').startsWith(mes)).reduce((s,x)=>s+Number(x.monto||0),0);
+
+  // Gastos reales por categoría
+  const gastoCat = {};
+  gastosMes.forEach(g=>{ const c=g.categoria||'Sin categoría'; gastoCat[c]=(gastoCat[c]||0)+Number(g.monto||0); });
+
+  // Total presupuestado
+  const totalPresup = db.presupuesto.reduce((s,p)=>s+Number(p.limite||0),0);
+  // Total gastado en categorías con presupuesto
+  const totalGastado = db.presupuesto.reduce((s,p)=>{
+    const real = gastoCat[p.categoria]||0;
+    return s+real;
+  },0);
+  // Gastos fijos: pagos + créditos
+  const totalFijos = pagosMes.reduce((s,x)=>s+Number(x.monto||0),0) + cuotas.reduce((s,c)=>s+Number(c.cuota||0),0);
+  // Punto de equilibrio
+  const maxGasto = totalIng - totalFijos;
+  const disponibleLibre = maxGasto - totalGastado;
+  const pctUsado = totalIng>0?Math.min(100,Math.round(((totalGastado+totalFijos)/totalIng)*100)):0;
+  const semaforo = pctUsado>=90?'🔴':pctUsado>=70?'🟡':'🟢';
+
+  // ── Resumen general
+  document.getElementById('pres_resumen').innerHTML=`
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-title">📊 Resumen del mes</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+        <div style="background:var(--green-light);border:1px solid rgba(22,163,74,.2);border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;margin-bottom:4px;">Ingresos mes</div>
+          <div style="font-size:18px;font-weight:900;color:var(--green);">$${money(totalIng)}</div>
+        </div>
+        <div style="background:var(--red-light);border:1px solid rgba(220,38,38,.2);border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--red);text-transform:uppercase;margin-bottom:4px;">Gastos fijos</div>
+          <div style="font-size:18px;font-weight:900;color:var(--red);">$${money(totalFijos)}</div>
+        </div>
+      </div>
+      <div style="height:10px;background:var(--bg3);border-radius:999px;overflow:hidden;margin-bottom:6px;">
+        <div style="height:100%;width:${pctUsado}%;background:${pctUsado>=90?'var(--red)':pctUsado>=70?'var(--amber)':'var(--green)'};border-radius:999px;transition:width .4s;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);">
+        <span>${semaforo} ${pctUsado}% del ingreso comprometido</span>
+        <span>Meta: &lt;80%</span>
+      </div>
+    </div>`;
+
+  // ── Punto de equilibrio
+  const peColor = disponibleLibre>=0?'var(--green)':'var(--red)';
+  const peBg    = disponibleLibre>=0?'var(--green-light)':'var(--red-light)';
+  const peBorder= disponibleLibre>=0?'rgba(22,163,74,.2)':'rgba(220,38,38,.2)';
+  document.getElementById('pres_equilibrio').innerHTML=`
+    <div class="card" style="margin-bottom:10px;background:${peBg};border-color:${peBorder};">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="font-size:36px;">${disponibleLibre>=0?'✅':'⚠️'}</div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:800;color:${peColor};">Punto de equilibrio</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">
+            Ingresos $${money(totalIng)} − Fijos $${money(totalFijos)} − Presupuestado $${money(totalGastado)}
+          </div>
+        </div>
+        <div style="font-size:22px;font-weight:900;color:${peColor};">${disponibleLibre>=0?'+':''}$${money(disponibleLibre)}</div>
+      </div>
+      <div style="margin-top:10px;font-size:12px;color:var(--muted);border-top:1px solid ${peBorder};padding-top:8px;">
+        ${disponibleLibre>=0
+          ? `Puedes gastar hasta <b style="color:${peColor};">$${money(disponibleLibre)}</b> más este mes sin afectar tu equilibrio.`
+          : `<b style="color:var(--red);">Atención:</b> ya superaste tu punto de equilibrio por <b style="color:var(--red);">$${money(Math.abs(disponibleLibre))}</b>.`}
+      </div>
+    </div>`;
+
+  // ── Categorías con presupuesto
+  if(db.presupuesto.length){
+    document.getElementById('pres_categorias').innerHTML=`
+      <div class="card" style="margin-bottom:10px;">
+        <div class="card-title">🏷️ Por categoría</div>
+        ${db.presupuesto.map((p,i)=>{
+          const real = gastoCat[p.categoria]||0;
+          const lim  = Number(p.limite||0);
+          const pct  = lim>0?Math.min(100,Math.round((real/lim)*100)):0;
+          const col  = pct>=100?'var(--red)':pct>=75?'var(--amber)':'var(--green)';
+          const sem  = pct>=100?'🔴':pct>=75?'🟡':'🟢';
+          const resto= Math.max(0,lim-real);
+          return `<div style="margin-bottom:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:14px;">${sem}</span>
+                <span style="font-size:13px;font-weight:700;">${esc(p.categoria)}</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:12px;font-weight:800;color:${col};">$${money(real)}</span>
+                <span style="font-size:11px;color:var(--muted);">/ $${money(lim)}</span>
+                <button class="btn icon small danger" onclick="delPresupuesto(${i})">✕</button>
+              </div>
+            </div>
+            <div style="height:7px;background:var(--bg3);border-radius:999px;overflow:hidden;">
+              <div style="height:100%;width:${pct}%;background:${col};border-radius:999px;transition:width .4s;"></div>
+            </div>
+            <div style="font-size:10px;color:var(--muted);margin-top:3px;">
+              ${pct>=100?`<span style="color:var(--red);font-weight:700;">Excedido por $${money(real-lim)}</span>`:`Disponible: <b>$${money(resto)}</b> (${100-pct}%)`}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+  } else {
+    document.getElementById('pres_categorias').innerHTML=`
+      <div class="card" style="margin-bottom:10px;">
+        <div class="card-title">🏷️ Por categoría</div>
+        <div class="empty" style="padding:20px 0;">
+          <div class="eico">🎯</div>
+          <p>Define límites por categoría para controlar tus gastos</p>
+        </div>
+      </div>`;
+  }
+
+  // ── Gastos sin presupuesto asignado
+  const catsSinPres = Object.entries(gastoCat).filter(([cat])=>!db.presupuesto.find(p=>p.categoria===cat));
+  if(catsSinPres.length){
+    document.getElementById('pres_sin_categoria').innerHTML=`
+      <div class="card" style="margin-bottom:10px;">
+        <div class="card-title" style="color:var(--amber);">⚠️ Sin presupuesto asignado</div>
+        ${catsSinPres.map(([cat,monto])=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:13px;font-weight:600;">${esc(cat)}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:13px;font-weight:800;color:var(--amber);">$${money(monto)}</span>
+              <button class="btn small primary" onclick="sheetAddPresupuesto('${esc(cat)}')">＋ Asignar</button>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  } else {
+    document.getElementById('pres_sin_categoria').innerHTML='';
+  }
+}
+
+function sheetAddPresupuesto(catPresel){
+  openSheet('＋ Agregar al presupuesto',`
+    <div class="flabel" style="margin-top:0;">Categoría</div>
+    <div class="field"><select id="np_cat">${catsOpts(catPresel)}</select></div>
+    <div class="flabel">Límite mensual</div>
+    <div class="field"><span class="ico">$</span><input type="number" id="np_limite" placeholder="0.00" step="0.01" inputmode="decimal"></div>
+    <div style="font-size:12px;color:var(--muted);margin-top:8px;">Define cuánto puedes gastar al mes en esta categoría.</div>
+  `,[
+    {label:'Cancelar',cls:'',action:closeSheet},
+    {label:'＋ Guardar',cls:'primary',action:()=>{
+      const cat   = document.getElementById('np_cat').value;
+      const limite= parseFloat(document.getElementById('np_limite').value);
+      if(!limite||isNaN(limite)||limite<=0){alert('Ingresa un límite válido');return;}
+      if(!db.presupuesto) db.presupuesto=[];
+      const existing = db.presupuesto.find(p=>p.categoria===cat);
+      if(existing){ existing.limite=limite; }
+      else { db.presupuesto.push({categoria:cat,limite}); }
+      save(); closeSheet(); renderPresupuesto();
+    }}
+  ]);
+  // Pre-fill if catPresel given
+  if(catPresel) setTimeout(()=>{ const s=document.getElementById('np_cat'); if(s) s.value=catPresel; },50);
+}
+
+function delPresupuesto(i){
+  if(!confirm('¿Eliminar este presupuesto?')) return;
+  db.presupuesto.splice(i,1);
+  save(); renderPresupuesto();
 }
 
 function renderHistorial(){
