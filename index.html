@@ -291,10 +291,6 @@ tbody tr:last-child td{border-bottom:none;}
         <div class="kpi-grid" id="kpiGrid"></div>
         <div class="flujo-card" id="flujoCard"></div>
         <div class="card" id="dashCreditoCard"></div>
-        <div class="card">
-          <div class="card-title">Actividad reciente</div>
-          <div id="recentList"></div>
-        </div>
       </div>
     </div>
 
@@ -779,21 +775,24 @@ function renderDashboard(){
   document.getElementById('flujoCard').innerHTML=`
     <div class="flujo-title">📊 Flujo del mes</div>
 
-    <div class="flujo-row">
+    <div class="flujo-row" onclick="showDetalleGastos('ingresos')" style="cursor:pointer;">
       <div class="flujo-lbl"><span style="color:var(--green);">▲</span> Ingresos</div>
-      <div class="flujo-val" style="color:var(--green);">+$${money(totalIng)}</div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div class="flujo-val" style="color:var(--green);">+$${money(totalIng)}</div>
+        <span style="font-size:11px;color:var(--muted);">Ver →</span>
+      </div>
     </div>
 
-    <div style="background:var(--red-light);border:1px solid rgba(220,38,38,.15);border-radius:10px;padding:10px 12px;margin:8px 0;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+    <div style="background:var(--red-light);border:1px solid rgba(220,38,38,.15);border-radius:10px;padding:10px 12px;margin:8px 0;cursor:pointer;" onclick="showDetalleGastos('fijos')">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
         <span style="font-size:12px;font-weight:800;color:var(--red);">🔒 Compromisos fijos</span>
-        <span style="font-size:13px;font-weight:900;color:var(--red);">-$${money(totalFijos)}</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:13px;font-weight:900;color:var(--red);">-$${money(totalFijos)}</span>
+          <span style="font-size:11px;color:var(--muted);">Ver →</span>
+        </div>
       </div>
-      ${db.creditos.map(c=>`
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);padding:2px 0;">
-          <span>🏛️ ${esc(c.nombre)}</span><span>-$${money(c.cuota)}</span>
-        </div>`).join('')}
-      ${totalPagosFijos>0?`<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);padding:2px 0;"><span>📋 Pagos fijos</span><span>-$${money(totalPagosFijos)}</span></div>`:''}
+      ${db.creditos.map(c=>`<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);padding:2px 0;border-top:1px solid rgba(220,38,38,.1);"><span>🏛️ ${esc(c.nombre)}</span><span>-$${money(c.cuota)}</span></div>`).join('')}
+      ${totalPagosFijos>0?`<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);padding:2px 0;border-top:1px solid rgba(220,38,38,.1);"><span>📋 Pagos fijos</span><span>-$${money(totalPagosFijos)}</span></div>`:''}
     </div>
 
     <div style="background:${disponibleReal>=0?'var(--accent-light)':'var(--red-light)'};border:1px solid ${disponibleReal>=0?'rgba(37,99,235,.2)':'rgba(220,38,38,.2)'};border-radius:10px;padding:10px 12px;margin-bottom:8px;">
@@ -801,22 +800,34 @@ function renderDashboard(){
         <span style="font-size:12px;font-weight:800;color:${dispColor};">💰 Disponible real</span>
         <span style="font-size:16px;font-weight:900;color:${dispColor};">${disponibleReal>=0?'+':''}$${money(disponibleReal)}</span>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:3px;">Lo que realmente puedes gastar este mes</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px;">Lo que puedes gastar este mes</div>
     </div>
 
-    <div class="flujo-row">
-      <div class="flujo-lbl"><span style="color:var(--muted);">  ↳</span> 👤 Gastos personales</div>
-      <div style="font-size:12px;color:var(--muted);">-$${money(gastosPersonal)}</div>
+    <div class="flujo-row" onclick="showDetalleGastos('personal')" style="cursor:pointer;">
+      <div class="flujo-lbl">👤 Personal</div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div style="font-size:13px;font-weight:800;color:var(--red);">-$${money(gastosPersonal)}</div>
+        <span style="font-size:11px;color:var(--muted);">Ver →</span>
+      </div>
     </div>
-    <div class="flujo-row">
-      <div class="flujo-lbl"><span style="color:var(--muted);">  ↳</span> 🏢 Gastos negocio</div>
-      <div style="font-size:12px;color:var(--muted);">-$${money(gastosNegocio)}</div>
+
+    <div class="flujo-row" onclick="showDetalleGastos('negocio')" style="cursor:pointer;">
+      <div class="flujo-lbl">🏢 Negocio</div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div style="font-size:13px;font-weight:800;color:var(--purple);">-$${money(gastosNegocio)}</div>
+        <span style="font-size:11px;color:var(--muted);">Ver →</span>
+      </div>
     </div>
+
     ${totalMovSalidas>0?`
-    <div class="flujo-row">
-      <div class="flujo-lbl"><span style="color:var(--muted);">  ↳</span> 💸 Transferencias / Efectivo</div>
-      <div style="font-size:12px;color:var(--muted);">-$${money(totalMovSalidas)}</div>
+    <div class="flujo-row" onclick="showDetalleGastos('transferencias')" style="cursor:pointer;">
+      <div class="flujo-lbl">💸 Transferencias / Efectivo</div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div style="font-size:13px;font-weight:800;color:var(--amber);">-$${money(totalMovSalidas)}</div>
+        <span style="font-size:11px;color:var(--muted);">Ver →</span>
+      </div>
     </div>`:''}
+
     <div style="background:${netColor};margin-top:8px;border-radius:10px;padding:12px;display:flex;justify-content:space-between;align-items:center;">
       <div>
         <div style="font-size:13px;font-weight:700;color:${netTextColor};">${netIco} Flujo libre</div>
@@ -825,9 +836,6 @@ function renderDashboard(){
       <div style="font-size:20px;font-weight:900;color:${netTextColor};">${flujoNeto>=0?'+':''}$${money(flujoNeto)}</div>
     </div>
   `;
-
-  // ── Actividad reciente con filtros
-  renderRecentFiltered(_dashFiltro, mes);
 
   // Resumen crédito
   document.getElementById('dashCreditoCard').innerHTML = renderResumenCredito(true);
@@ -1712,6 +1720,126 @@ function mesLabel(m){
   const names=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   const [y,mo]=m.split('-');
   return names[parseInt(mo)-1]+' '+y.slice(2);
+}
+
+// ── DETALLE GASTOS FLUJO ─────────────────────────────────────
+function showDetalleGastos(tipo){
+  const mes = currentMonth();
+  let title='', body='';
+  const gastosMes = db.gastos.filter(x=>(x.fecha||'').startsWith(mes));
+
+  if(tipo==='ingresos'){
+    title='💰 Ingresos del mes';
+    const items = db.ingresos.filter(x=>(x.fecha||'').startsWith(mes));
+    const total = items.reduce((s,x)=>s+Number(x.monto||0),0);
+    body = `<div style="padding:12px;background:var(--green-light);border-radius:10px;margin-bottom:12px;display:flex;justify-content:space-between;">
+      <span style="font-weight:700;color:var(--green);">Total</span>
+      <span style="font-size:18px;font-weight:900;color:var(--green);">+$${money(total)}</span>
+    </div>` + (items.length ? items.sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(x=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+        <div style="width:36px;height:36px;border-radius:9px;background:var(--green-light);display:grid;place-items:center;font-size:16px;">💰</div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:700;">${esc(x.concepto||x.tipo||'Ingreso')}</div>
+          <div style="font-size:11px;color:var(--muted);">${x.tipo==='sueldo'?'Sueldo':'Emprendimiento'} · ${formatDate(x.fecha)}</div>
+        </div>
+        <div style="font-size:14px;font-weight:900;color:var(--green);">+$${money(x.monto)}</div>
+      </div>`).join('') : '<div class="empty"><p>Sin ingresos este mes</p></div>');
+  }
+
+  else if(tipo==='fijos'){
+    title='🔒 Compromisos fijos';
+    const pagosFijos = db.pagos.filter(x=>(x.fecha||'').startsWith(mes)&&x.tipo!=='tarjeta');
+    const totalC = db.creditos.reduce((s,c)=>s+Number(c.cuota||0),0);
+    const totalP = pagosFijos.reduce((s,x)=>s+Number(x.monto||0),0);
+    body = `<div style="padding:12px;background:var(--red-light);border-radius:10px;margin-bottom:12px;display:flex;justify-content:space-between;">
+      <span style="font-weight:700;color:var(--red);">Total fijos</span>
+      <span style="font-size:18px;font-weight:900;color:var(--red);">-$${money(totalC+totalP)}</span>
+    </div>`;
+    if(db.creditos.length){
+      body += `<div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">🏛️ Créditos bancarios</div>`;
+      body += db.creditos.map(c=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+          <div style="width:36px;height:36px;border-radius:9px;background:var(--purple-light);display:grid;place-items:center;font-size:16px;">🏛️</div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:700;">${esc(c.nombre)}</div>
+            <div style="font-size:11px;color:var(--muted);">Cuota mensual · Vence ${formatDate(c.fechaPago)}</div>
+          </div>
+          <div style="font-size:14px;font-weight:900;color:var(--purple);">-$${money(c.cuota)}</div>
+        </div>`).join('');
+    }
+    if(pagosFijos.length){
+      body += `<div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;margin:12px 0 8px;">📋 Pagos fijos</div>`;
+      body += pagosFijos.map(p=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+          <div style="width:36px;height:36px;border-radius:9px;background:var(--amber-light);display:grid;place-items:center;font-size:16px;">📋</div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:700;">${esc(p.nombre)}</div>
+            <div style="font-size:11px;color:var(--muted);">${formatDate(p.fecha)}</div>
+          </div>
+          <div style="font-size:14px;font-weight:900;color:var(--amber);">-$${money(p.monto)}</div>
+        </div>`).join('');
+    }
+  }
+
+  else if(tipo==='personal' || tipo==='negocio'){
+    const esNeg = tipo==='negocio';
+    title = esNeg?'🏢 Gastos de negocio':'👤 Gastos personales';
+    const items = gastosMes.filter(x=> esNeg ? esGastoNegocio(x) : !esGastoNegocio(x));
+    const total = items.reduce((s,x)=>s+Number(x.monto||0),0);
+    const col   = esNeg?'var(--purple)':'var(--red)';
+    const bg    = esNeg?'var(--purple-light)':'var(--red-light)';
+    // Group by origin
+    const porOrigen={};
+    items.forEach(g=>{ const n=tarjetaNombre(g.tarjetaId)||cuentaNombre(g.cuentaId)||'Efectivo'; porOrigen[n]=porOrigen[n]||[]; porOrigen[n].push(g); });
+    body = `<div style="padding:12px;background:${bg};border-radius:10px;margin-bottom:12px;display:flex;justify-content:space-between;">
+      <span style="font-weight:700;color:${col};">Total ${esNeg?'negocio':'personal'}</span>
+      <span style="font-size:18px;font-weight:900;color:${col};">-$${money(total)}</span>
+    </div>`;
+    if(items.length){
+      Object.entries(porOrigen).forEach(([nombre,gs])=>{
+        const sub=gs.reduce((s,x)=>s+Number(x.monto||0),0);
+        body+=`<div style="background:var(--bg3);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-size:13px;font-weight:800;">${esc(nombre)}</span>
+            <span style="font-size:13px;font-weight:900;color:${col};">-$${money(sub)}</span>
+          </div>
+          ${gs.sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(g=>`
+            <div style="display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid var(--border);">
+              <div>
+                <div style="font-size:13px;font-weight:600;">${esc(g.concepto||'Gasto')}</div>
+                <div style="font-size:11px;color:var(--muted);">${esc(g.categoria||'General')} · ${formatDate(g.fecha)}</div>
+              </div>
+              <span style="font-weight:700;color:${col};white-space:nowrap;margin-left:8px;">-$${money(g.monto)}</span>
+            </div>`).join('')}
+        </div>`;
+      });
+    } else {
+      body += '<div class="empty"><p>Sin gastos este mes</p></div>';
+    }
+  }
+
+  else if(tipo==='transferencias'){
+    title='💸 Transferencias y Efectivo';
+    const movs = db.cuentas.flatMap(c=>(c.movimientos||[]).filter(m=>
+      m.tipo==='retiro'&&(m.subTipo==='transferencia'||m.subTipo==='efectivo')&&(m.fecha||'').startsWith(mes)
+    ).map(m=>({...m, cuentaNom:c.nombre})));
+    const total = movs.reduce((s,m)=>s+Number(m.monto||0),0);
+    body = `<div style="padding:12px;background:var(--amber-light);border-radius:10px;margin-bottom:12px;display:flex;justify-content:space-between;">
+      <span style="font-weight:700;color:var(--amber);">Total</span>
+      <span style="font-size:18px;font-weight:900;color:var(--amber);">-$${money(total)}</span>
+    </div>`;
+    body += movs.length ? movs.sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||'')).map(m=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+        <div style="width:36px;height:36px;border-radius:9px;background:var(--amber-light);display:grid;place-items:center;font-size:16px;">${m.subTipo==='transferencia'?'💸':'💵'}</div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:700;">${esc(m.concepto||'—')}</div>
+          <div style="font-size:11px;color:var(--muted);">${esc(m.cuentaNom)} · ${m.subTipo==='transferencia'?'Transferencia':'Retiro efectivo'} · ${formatDate(m.fecha)}</div>
+        </div>
+        <div style="font-size:14px;font-weight:900;color:var(--amber);">-$${money(m.monto)}</div>
+      </div>`).join('') : '<div class="empty"><p>Sin transferencias este mes</p></div>';
+  }
+
+  openSheet(title, body, [{label:'Cerrar',cls:'',action:closeSheet}]);
 }
 
 // ── DETALLE KPI ─────────────────────────────────────────────
