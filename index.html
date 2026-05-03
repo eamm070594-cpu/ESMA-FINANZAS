@@ -682,22 +682,46 @@ function updateTopbar(){
 }
 
 // ── DASHBOARD ───────────────────────────────────────────────
+var _dashFiltro = 'todos'; // todos | personal | negocio | categoria
+
+const CATS_NEGOCIO = ['Negocio'];
+const CATS_PERSONAL = ['Comida','Gasolina','Ropa','Servicios','Entretenimiento','Salud','Viajes','Otro'];
+
+function esGastoNegocio(gasto){
+  // Si tiene tarjeta asignada, usar el tipo de la tarjeta
+  if(gasto.tarjetaId){
+    const t = db.tarjetas.find(x=>x.id===gasto.tarjetaId);
+    if(t) return t.esNegocio===true;
+  }
+  // Si es débito/efectivo, usar categoría
+  return CATS_NEGOCIO.includes(gasto.categoria);
+}
+function esCatNegocio(cat){ return CATS_NEGOCIO.includes(cat); }
+
 function renderDashboard(){
   const mes = currentMonth();
+
   // Ingresos del mes
   const ingMes = db.ingresos.filter(x=>(x.fecha||'').startsWith(mes));
   const totalIng = ingMes.reduce((s,x)=>s+Number(x.monto||0),0);
-  // Gastos en tarjetas del mes
+
+  // OPCIÓN A: salidas = gastos individuales (no pagos a tarjeta)
+  // Gastos de tarjetas/débito/efectivo del mes
   const gastosMes = db.gastos.filter(x=>(x.fecha||'').startsWith(mes));
   const totalGastos = gastosMes.reduce((s,x)=>s+Number(x.monto||0),0);
-  // Pagos del mes (a tarjetas + manuales)
-  const pagosMes = db.pagos.filter(x=>(x.fecha||'').startsWith(mes));
-  const totalPagos = pagosMes.reduce((s,x)=>s+Number(x.monto||0),0);
-  // Cuotas créditos
+  // Pagos manuales del mes (renta, luz, etc.) — NO pagos a tarjeta
+  const pagosManuales = db.pagos.filter(x=>(x.fecha||'').startsWith(mes)&&x.tipo!=='tarjeta');
+  const totalPagosManuales = pagosManuales.reduce((s,x)=>s+Number(x.monto||0),0);
+  // Cuotas créditos bancarios
   const totalCuotas = db.creditos.reduce((s,c)=>s+Number(c.cuota||0),0);
-  // Total salidas
-  const totalSalidas = totalGastos + totalPagos + totalCuotas;
+  // Total salidas real (sin duplicar pagos a tarjeta)
+  const totalSalidas = totalGastos + totalPagosManuales + totalCuotas;
   const flujoNeto = totalIng - totalSalidas;
+
+  // Desglose personal vs negocio
+  const gastosPersonal = gastosMes.filter(x=>!esGastoNegocio(x)).reduce((s,x)=>s+Number(x.monto||0),0);
+  const gastosNegocio  = gastosMes.filter(x=>esGastoNegocio(x)).reduce((s,x)=>s+Number(x.monto||0),0);
+
   // Deuda tarjetas
   const totalDeuda = db.tarjetas.reduce((s,t)=>s+Math.max(0,Number(t.limite||0)-Number(t.disponible||0)),0);
   // Liquidez cuentas
@@ -705,80 +729,104 @@ function renderDashboard(){
 
   document.getElementById('dashSub').textContent = new Date().toLocaleDateString('es-MX',{month:'long',year:'numeric'});
 
-  // KPIs — clickables
+  // KPIs
   document.getElementById('kpiGrid').innerHTML=`
     <div class="kpi" onclick="showDetalle('ingresos')" style="cursor:pointer;">
-      <div class="kico">💰</div>
-      <div class="klbl">Ingresos mes</div>
+      <div class="kico">💰</div><div class="klbl">Ingresos mes</div>
       <div class="kval" style="color:var(--green);">$${money(totalIng)}</div>
       <div class="ksub">${ingMes.length} registro${ingMes.length!==1?'s':''} · Ver →</div>
     </div>
     <div class="kpi" onclick="showDetalle('salidas')" style="cursor:pointer;">
-      <div class="kico">📉</div>
-      <div class="klbl">Salidas mes</div>
+      <div class="kico">📉</div><div class="klbl">Salidas mes</div>
       <div class="kval" style="color:var(--red);">$${money(totalSalidas)}</div>
-      <div class="ksub">Gastos + pagos · Ver →</div>
+      <div class="ksub">Personal $${money(gastosPersonal)} · Neg $${money(gastosNegocio)} · Ver →</div>
     </div>
     <div class="kpi" onclick="showDetalle('cuentas')" style="cursor:pointer;">
-      <div class="kico">🏦</div>
-      <div class="klbl">En cuentas</div>
+      <div class="kico">🏦</div><div class="klbl">En cuentas</div>
       <div class="kval" style="color:var(--accent);">$${money(totalCuentas)}</div>
       <div class="ksub">${db.cuentas.length} cuenta${db.cuentas.length!==1?'s':''} · Ver →</div>
     </div>
     <div class="kpi" onclick="showDetalle('deuda')" style="cursor:pointer;">
-      <div class="kico">💳</div>
-      <div class="klbl">Deuda total</div>
+      <div class="kico">💳</div><div class="klbl">Deuda total</div>
       <div class="kval" style="color:${totalDeuda>0?'var(--red)':'var(--green)'};">$${money(totalDeuda)}</div>
       <div class="ksub">${db.tarjetas.length} tarjeta${db.tarjetas.length!==1?'s':''} · Ver →</div>
     </div>
   `;
 
   // Flujo
-  const netColor = flujoNeto >= 0 ? 'var(--green-light)' : 'var(--red-light)';
-  const netTextColor = flujoNeto >= 0 ? 'var(--green)' : 'var(--red)';
-  const netIco = flujoNeto >= 0 ? '📈' : '📉';
-  const maxBar = Math.max(totalIng, totalSalidas, 1);
-  const inPct = Math.round((totalIng/maxBar)*100);
-  const outPct = Math.round((totalSalidas/maxBar)*100);
+  const netColor = flujoNeto>=0?'var(--green-light)':'var(--red-light)';
+  const netTextColor = flujoNeto>=0?'var(--green)':'var(--red)';
+  const netIco = flujoNeto>=0?'📈':'📉';
+  const maxBar = Math.max(totalIng,totalSalidas,1);
 
   document.getElementById('flujoCard').innerHTML=`
     <div class="flujo-title">📊 Flujo del mes</div>
-    <div class="flujo-row">
-      <div class="flujo-lbl"><span style="color:var(--green);">▲</span> Entradas</div>
-      <div class="flujo-val" style="color:var(--green);">+$${money(totalIng)}</div>
-    </div>
-    <div class="flujo-row">
-      <div class="flujo-lbl"><span style="color:var(--muted);">  ↳</span> Gastos tarjetas</div>
-      <div style="font-size:12px;color:var(--muted);">$${money(totalGastos)}</div>
-    </div>
-    <div class="flujo-row">
-      <div class="flujo-lbl"><span style="color:var(--muted);">  ↳</span> Pagos / compromisos</div>
-      <div style="font-size:12px;color:var(--muted);">$${money(totalPagos+totalCuotas)}</div>
-    </div>
-    <div class="flujo-row">
-      <div class="flujo-lbl"><span style="color:var(--red);">▼</span> Salidas</div>
-      <div class="flujo-val" style="color:var(--red);">-$${money(totalSalidas)}</div>
-    </div>
+    <div class="flujo-row"><div class="flujo-lbl"><span style="color:var(--green);">▲</span> Entradas</div><div class="flujo-val" style="color:var(--green);">+$${money(totalIng)}</div></div>
+    <div class="flujo-row"><div class="flujo-lbl"><span style="color:var(--muted);">  ↳</span> Gastos personales</div><div style="font-size:12px;color:var(--muted);">$${money(gastosPersonal)}</div></div>
+    <div class="flujo-row"><div class="flujo-lbl"><span style="color:var(--muted);">  ↳</span> Gastos negocio</div><div style="font-size:12px;color:var(--muted);">$${money(gastosNegocio)}</div></div>
+    <div class="flujo-row"><div class="flujo-lbl"><span style="color:var(--muted);">  ↳</span> Pagos fijos + créditos</div><div style="font-size:12px;color:var(--muted);">$${money(totalPagosManuales+totalCuotas)}</div></div>
+    <div class="flujo-row"><div class="flujo-lbl"><span style="color:var(--red);">▼</span> Salidas totales</div><div class="flujo-val" style="color:var(--red);">-$${money(totalSalidas)}</div></div>
     <div class="flujo-bar-wrap">
       <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:4px;"><span>Entradas</span><span>Salidas</span></div>
       <div class="flujo-bar-track">
-        <div class="flujo-bar-in" style="width:${inPct}%;"></div>
+        <div class="flujo-bar-in" style="width:${Math.round(totalIng/maxBar*100)}%;"></div>
         <div style="flex:1;"></div>
-        <div class="flujo-bar-out" style="width:${outPct}%;"></div>
+        <div class="flujo-bar-out" style="width:${Math.round(totalSalidas/maxBar*100)}%;"></div>
       </div>
     </div>
-    <div class="flujo-net" style="background:${netColor};margin-top:12px;border-radius:10px;padding:12px;">
-      <div style="font-size:13px;font-weight:700;color:${netTextColor};">${netIco} Flujo neto del mes</div>
+    <div style="background:${netColor};margin-top:12px;border-radius:10px;padding:12px;display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-size:13px;font-weight:700;color:${netTextColor};">${netIco} Flujo neto</div>
       <div style="font-size:18px;font-weight:900;color:${netTextColor};">${flujoNeto>=0?'+':''}$${money(flujoNeto)}</div>
     </div>
   `;
 
-  // Recent
+  // ── Actividad reciente con filtros
+  renderRecentFiltered(_dashFiltro, mes);
+
+  // Resumen crédito
+  document.getElementById('dashCreditoCard').innerHTML = renderResumenCredito(true);
+}
+
+function renderRecentFiltered(filtro, mes){
+  _dashFiltro = filtro;
+  const gastosMes = db.gastos.filter(x=>(x.fecha||'').startsWith(mes||currentMonth()));
+  const pagosManuales = db.pagos.filter(x=>(x.fecha||'').startsWith(mes||currentMonth())&&x.tipo!=='tarjeta');
+
+  // Filtrar gastos
+  let gastosFiltrados = gastosMes;
+  if(filtro==='personal') gastosFiltrados = gastosMes.filter(x=>!esGastoNegocio(x));
+  else if(filtro==='negocio') gastosFiltrados = gastosMes.filter(x=>esGastoNegocio(x));
+
   const allAct = [
-    ...db.gastos.map(x=>({fecha:x.fecha,desc:x.concepto||'Gasto',sub:tarjetaNombre(x.tarjetaId),monto:x.monto,ico:'💳',color:'var(--red)',sign:'-'})),
-    ...db.ingresos.map(x=>({fecha:x.fecha,desc:x.concepto||'Ingreso',sub:x.tipo||'',monto:x.monto,ico:'💰',color:'var(--green)',sign:'+'})),
-    ...db.pagos.map(x=>({fecha:x.fecha,desc:x.nombre||'Pago',sub:x.destino||'',monto:x.monto,ico:'📤',color:'var(--amber)',sign:'-'})),
-  ].filter(x=>x.fecha).sort((a,b)=>b.fecha.localeCompare(a.fecha)).slice(0,6);
+    ...gastosFiltrados.map(x=>({
+      fecha:x.fecha,
+      desc:x.concepto||'Gasto',
+      sub:(tarjetaNombre(x.tarjetaId)||cuentaNombre(x.cuentaId)||'Efectivo')+' · '+(x.categoria||''),
+      monto:x.monto,
+      ico: esGastoNegocio(x)?'🏢':'👤',
+      color:'var(--red)',sign:'-'
+    })),
+    ...(filtro==='todos'?[
+      ...db.ingresos.filter(x=>(x.fecha||'').startsWith(mes||currentMonth())).map(x=>({fecha:x.fecha,desc:x.concepto||'Ingreso',sub:x.tipo||'',monto:x.monto,ico:'💰',color:'var(--green)',sign:'+'})),
+      ...pagosManuales.map(x=>({fecha:x.fecha,desc:x.nombre||'Pago',sub:x.destino||'',monto:x.monto,ico:'📋',color:'var(--amber)',sign:'-'})),
+    ]:[]),
+  ].filter(x=>x.fecha).sort((a,b)=>b.fecha.localeCompare(a.fecha)).slice(0,20);
+
+  const totalFiltrado = gastosFiltrados.reduce((s,x)=>s+Number(x.monto||0),0);
+
+  const recentCard = document.getElementById('recentList').parentElement;
+  if(recentCard){
+    const titleEl = recentCard.querySelector('.card-title');
+    if(titleEl) titleEl.innerHTML = `
+      Actividad reciente
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+        ${['todos','personal','negocio'].map(f=>`
+          <button onclick="renderRecentFiltered('${f}')" style="padding:4px 10px;border-radius:999px;border:1px solid ${f===filtro?'var(--accent)':'var(--border)'};background:${f===filtro?'var(--accent-light)':'var(--bg3)'};color:${f===filtro?'var(--accent)':'var(--muted)'};font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font);">
+            ${f==='todos'?'Todos':f==='personal'?'👤 Personal':'🏢 Negocio'}
+          </button>`).join('')}
+        ${filtro!=='todos'?`<span style="font-size:11px;color:var(--muted);align-self:center;">Total: <b style="color:var(--red);">$${money(totalFiltrado)}</b></span>`:''}
+      </div>`;
+  }
 
   document.getElementById('recentList').innerHTML = allAct.length ? allAct.map(a=>`
     <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
@@ -789,11 +837,10 @@ function renderDashboard(){
       </div>
       <div style="font-size:13px;font-weight:800;color:${a.color};">${a.sign}$${money(a.monto)}</div>
     </div>
-  `).join('') : '<div class="empty"><div class="eico">🕊️</div><p>Sin actividad aún</p></div>';
-
-  // Resumen crédito disponible
-  document.getElementById('dashCreditoCard').innerHTML = renderResumenCredito(true);
+  `).join('') : '<div class="empty"><div class="eico">🕊️</div><p>Sin actividad</p></div>';
 }
+
+function cuentaNombre(id){ const c=db.cuentas.find(x=>x.id===id); return c?c.nombre:''; }
 
 function renderResumenCredito(compact){
   if(!db.tarjetas.length) return compact?'':'<div class="empty"><div class="eico">💳</div><p>Sin tarjetas registradas</p></div>';
@@ -877,7 +924,7 @@ function renderTarjetas(){
       <div class="tc-header">
         <div class="tc-ico" style="background:linear-gradient(135deg,rgba(124,58,237,.15),rgba(124,58,237,.05));border:1px solid rgba(124,58,237,.15);">💳</div>
         <div class="tc-info">
-          <div class="tc-name">${esc(t.nombre)}</div>
+          <div class="tc-name">${esc(t.nombre)} ${t.esNegocio?'<span style="font-size:10px;font-weight:700;color:var(--purple);background:var(--purple-light);padding:2px 6px;border-radius:999px;border:1px solid rgba(124,58,237,.2);">🏢 Negocio</span>':'<span style="font-size:10px;font-weight:700;color:var(--accent);background:var(--accent-light);padding:2px 6px;border-radius:999px;border:1px solid rgba(37,99,235,.2);">👤 Personal</span>'}</div>
           <div class="tc-dates">
             ${t.fechaCorte?`Corte: ${formatDate(t.fechaCorte)} · `:''}
             ${t.fechaPago?`Pago: ${formatDate(t.fechaPago)}`:''}
@@ -1065,6 +1112,11 @@ function sheetEditTarjeta(t){
   openSheet('Editar tarjeta',`
     <div class="flabel">Nombre</div>
     <div class="field"><input id="et_nombre" value="${esc(t.nombre||'')}"></div>
+    <div class="flabel">Tipo</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;">
+      <button id="et_tipo_personal" onclick="setTipoTarjeta('personal')" style="padding:10px;border-radius:10px;border:${!t.esNegocio?'2px solid var(--accent)':'1px solid var(--border)'};background:${!t.esNegocio?'var(--accent-light)':'var(--bg3)'};color:${!t.esNegocio?'var(--accent)':'var(--muted)'};font-size:13px;font-weight:800;font-family:var(--font);cursor:pointer;">👤 Personal</button>
+      <button id="et_tipo_negocio" onclick="setTipoTarjeta('negocio')" style="padding:10px;border-radius:10px;border:${t.esNegocio?'2px solid var(--purple)':'1px solid var(--border)'};background:${t.esNegocio?'var(--purple-light)':'var(--bg3)'};color:${t.esNegocio?'var(--purple)':'var(--muted)'};font-size:13px;font-weight:800;font-family:var(--font);cursor:pointer;">🏢 Negocio</button>
+    </div>
     <div class="frow">
       <div>
         <div class="flabel">Límite de crédito</div>
@@ -1093,15 +1145,30 @@ function sheetEditTarjeta(t){
       t.disponible=parseFloat(document.getElementById('et_disp').value)||0;
       t.fechaCorte=document.getElementById('et_corte').value;
       t.fechaPago=document.getElementById('et_pago').value;
+      t.esNegocio=window._tipoTarjetaEdit==='negocio';
       save();closeSheet();renderTarjetaDetail();
     }}
   ]);
+  window._tipoTarjetaEdit = t.esNegocio?'negocio':'personal';
+}
+function setTipoTarjeta(tipo){
+  window._tipoTarjetaEdit=tipo;
+  const bp=document.getElementById('et_tipo_personal');
+  const bn=document.getElementById('et_tipo_negocio');
+  if(bp){ bp.style.border=tipo==='personal'?'2px solid var(--accent)':'1px solid var(--border)'; bp.style.background=tipo==='personal'?'var(--accent-light)':'var(--bg3)'; bp.style.color=tipo==='personal'?'var(--accent)':'var(--muted)'; }
+  if(bn){ bn.style.border=tipo==='negocio'?'2px solid var(--purple)':'1px solid var(--border)'; bn.style.background=tipo==='negocio'?'var(--purple-light)':'var(--bg3)'; bn.style.color=tipo==='negocio'?'var(--purple)':'var(--muted)'; }
 }
 
 document.getElementById('btnAddTarjeta').addEventListener('click',()=>{
+  window._tipoTarjetaEdit='personal';
   openSheet('Nueva tarjeta',`
     <div class="flabel">Nombre</div>
     <div class="field"><input id="at_nombre" placeholder="Ej. Banamex Oro, BBVA Azul..."></div>
+    <div class="flabel">Tipo</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;">
+      <button id="et_tipo_personal" onclick="setTipoTarjeta('personal')" style="padding:10px;border-radius:10px;border:2px solid var(--accent);background:var(--accent-light);color:var(--accent);font-size:13px;font-weight:800;font-family:var(--font);cursor:pointer;">👤 Personal</button>
+      <button id="et_tipo_negocio" onclick="setTipoTarjeta('negocio')" style="padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);font-size:13px;font-weight:800;font-family:var(--font);cursor:pointer;">🏢 Negocio</button>
+    </div>
     <div class="frow">
       <div>
         <div class="flabel">Límite de crédito</div>
@@ -1127,7 +1194,7 @@ document.getElementById('btnAddTarjeta').addEventListener('click',()=>{
     {label:'＋ Guardar',cls:'primary',action:()=>{
       const nombre=document.getElementById('at_nombre').value.trim();
       if(!nombre){alert('Ingresa el nombre');return;}
-      db.tarjetas.push({id:uid(),nombre,limite:parseFloat(document.getElementById('at_limite').value)||0,disponible:parseFloat(document.getElementById('at_disp').value)||0,fechaCorte:document.getElementById('at_corte').value,fechaPago:document.getElementById('at_pago').value});
+      db.tarjetas.push({id:uid(),nombre,limite:parseFloat(document.getElementById('at_limite').value)||0,disponible:parseFloat(document.getElementById('at_disp').value)||0,fechaCorte:document.getElementById('at_corte').value,fechaPago:document.getElementById('at_pago').value,esNegocio:window._tipoTarjetaEdit==='negocio'});
       save();closeSheet();renderTarjetas();
     }}
   ]);
@@ -1571,46 +1638,62 @@ function showDetalle(tipo){
     const totalP = pagos.reduce((s,x)=>s+Number(x.monto||0),0);
     const totalC = cuotas.reduce((s,x)=>s+Number(x.cuota||0),0);
     const total  = totalG+totalP+totalC;
+    const personal = gastos.filter(x=>!esGastoNegocio(x)).reduce((s,x)=>s+Number(x.monto||0),0);
+    const negocio  = gastos.filter(x=>esGastoNegocio(x)).reduce((s,x)=>s+Number(x.monto||0),0);
 
-    body = `<div style="margin-bottom:12px;padding:12px;background:var(--red-light);border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:13px;font-weight:700;color:var(--red);">Total salidas</span>
-      <span style="font-size:20px;font-weight:900;color:var(--red);">-$${money(total)}</span>
+    body = `<div style="margin-bottom:12px;padding:12px;background:var(--red-light);border-radius:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:13px;font-weight:700;color:var(--red);">Total salidas</span>
+        <span style="font-size:20px;font-weight:900;color:var(--red);">-$${money(total)}</span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <div style="flex:1;background:rgba(255,255,255,.6);border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">👤 Personal</div>
+          <div style="font-size:15px;font-weight:900;color:var(--red);">$${money(personal)}</div>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,.6);border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">🏢 Negocio</div>
+          <div style="font-size:15px;font-weight:900;color:var(--purple);">$${money(negocio)}</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;text-align:center;">Los pagos a tarjetas de crédito no se incluyen (ya contados como gastos)</div>
     </div>`;
 
     if(gastos.length){
-      // Agrupar por tarjeta
       const porTarjeta = {};
-      gastos.forEach(g=>{ const n=tarjetaNombre(g.tarjetaId)||'Sin tarjeta'; porTarjeta[n]=(porTarjeta[n]||[]); porTarjeta[n].push(g); });
-      body += `<div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 8px;">💳 Gastos por tarjeta · $${money(totalG)}</div>`;
+      gastos.forEach(g=>{
+        const n = tarjetaNombre(g.tarjetaId)||cuentaNombre(g.cuentaId)||'Efectivo';
+        porTarjeta[n]=porTarjeta[n]||[];
+        porTarjeta[n].push(g);
+      });
+      body += `<div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 8px;">🛍️ Gastos · $${money(totalG)}</div>`;
       Object.entries(porTarjeta).forEach(([nombre,gs])=>{
-        const sub = gs.reduce((s,x)=>s+Number(x.monto||0),0);
-        body += `<div style="background:var(--bg3);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
+        const sub=gs.reduce((s,x)=>s+Number(x.monto||0),0);
+        body+=`<div style="background:var(--bg3);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
           <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-            <span style="font-size:13px;font-weight:800;">💳 ${esc(nombre)}</span>
+            <span style="font-size:13px;font-weight:800;">${esc(nombre)}</span>
             <span style="font-size:13px;font-weight:900;color:var(--red);">-$${money(sub)}</span>
           </div>
           ${gs.sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(g=>`
             <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid var(--border);font-size:12px;">
-              <span style="color:var(--text);">${esc(g.concepto||'Gasto')} <span style="color:var(--muted);">· ${esc(g.categoria||'')} · ${formatDate(g.fecha)}</span></span>
+              <span>${esGastoNegocio(g)?'🏢':'👤'} ${esc(g.concepto||'Gasto')} <span style="color:var(--muted);">· ${esc(g.categoria||'')} · ${formatDate(g.fecha)}</span></span>
               <span style="font-weight:700;color:var(--red);white-space:nowrap;margin-left:8px;">-$${money(g.monto)}</span>
             </div>`).join('')}
         </div>`;
       });
     }
-
     if(pagos.length){
-      body += `<div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 8px;">📋 Pagos manuales · $${money(totalP)}</div>`;
-      body += pagos.sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(p=>`
+      body+=`<div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 8px;">📋 Pagos fijos · $${money(totalP)}</div>`;
+      body+=pagos.sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(p=>`
         <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
           <div style="width:34px;height:34px;border-radius:9px;background:var(--amber-light);display:grid;place-items:center;font-size:15px;">📋</div>
           <div style="flex:1;"><div style="font-size:13px;font-weight:700;">${esc(p.nombre)}</div><div style="font-size:11px;color:var(--muted);">${formatDate(p.fecha)}</div></div>
           <div style="font-size:13px;font-weight:900;color:var(--amber);">-$${money(p.monto)}</div>
         </div>`).join('');
     }
-
     if(cuotas.length){
-      body += `<div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 8px;">🏛️ Créditos bancarios · $${money(totalC)}</div>`;
-      body += cuotas.map(c=>`
+      body+=`<div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 8px;">🏛️ Créditos · $${money(totalC)}</div>`;
+      body+=cuotas.map(c=>`
         <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
           <div style="width:34px;height:34px;border-radius:9px;background:var(--purple-light);display:grid;place-items:center;font-size:15px;">🏛️</div>
           <div style="flex:1;"><div style="font-size:13px;font-weight:700;">${esc(c.nombre)}</div><div style="font-size:11px;color:var(--muted);">Cuota mensual</div></div>
